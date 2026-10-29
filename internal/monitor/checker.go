@@ -38,12 +38,9 @@ func NewHTTPChecker(url string) *HTTPChecker {
 func (c *HTTPChecker) Check(ctx context.Context) (*int, int, bool) {
 	start := time.Now()
 	statusCode, err := c.doRequest(ctx, c.url, http.MethodHead)
-	if err != nil {
-		// If HEAD fails, try GET as a fallback in case the server doesn't support HEAD.
-		if statusCode != nil && *statusCode == http.StatusMethodNotAllowed {
-			start = time.Now()
-			statusCode, err = c.doRequest(ctx, c.url, http.MethodGet)
-		}
+	if err == nil && statusCode != nil && *statusCode == http.StatusMethodNotAllowed {
+		// HTTP error responses are not transport errors. Retry unsupported HEAD with GET.
+		statusCode, err = c.doRequest(ctx, c.url, http.MethodGet)
 	}
 	responseTimeMs := int(time.Since(start).Milliseconds())
 
@@ -89,7 +86,7 @@ func (c *TCPChecker) Check(ctx context.Context) (*int, int, bool) {
 
 	// We use a Dialer to respect the context timeout
 	dialer := net.Dialer{}
-	
+
 	conn, err := dialer.DialContext(ctx, "tcp", c.address)
 	responseTimeMs := int(time.Since(start).Milliseconds())
 
