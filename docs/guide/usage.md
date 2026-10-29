@@ -17,11 +17,15 @@ The active filter is highlighted. Badge counts describe all your monitors, indep
 
 **All** shows the overall monitor count. If no matches remain, use **All** or **Clear filters** to reset the view.
 
-## HTTP and TCP checks
+## HTTP, TCP and Ping checks
 
 HTTP checks try `HEAD` first. A `405 Method Not Allowed` response causes a retry with `GET`, so API health endpoints that only support GET can still be monitored. Responses with status codes `200`–`399` count as UP. Redirects are reported without following them. Network errors, TLS validation failures and other status codes count as DOWN. The HTTP client timeout is 10 seconds.
 
 TCP monitors attempt to open a connection to `host:port`; a successful connection counts as UP. They do not send application-level health queries, and their cards have no HTTP status code.
+
+Ping monitors send one ICMP Echo Request to a hostname or IP address, without a port or URL scheme. An Echo Reply counts as UP; no reply within 10 seconds counts as DOWN. The response time is the ICMP round-trip time. IPv4 and IPv6 addresses are supported; dual-stack hostnames prefer IPv4. Cards, tooltips and history show **ICMP** with **Reply received**, **Timeout**, **DNS error**, **Permission denied** or another failure reason. Failure thresholds and notifications work the same as for HTTP and TCP.
+
+Ping uses unprivileged ICMP sockets directly from Go; no external `ping` executable is needed. Standard Docker installations normally allow these sockets without extra Compose settings. If your environment reports **Permission denied**, allow the application group with `net.ipv4.ping_group_range` (for the Docker image, group ID `10001`).
 
 Choose a check interval of at least 10 seconds. The form defaults to 60 seconds and a failure threshold of three. The threshold controls outage alerts; it does not delay the displayed status change. Workers stagger startup briefly. An outage alert is sent once when consecutive failures reach the threshold, including failures from startup. A recovery alert is sent only after an outage alert was triggered; brief failures below the threshold produce neither notification.
 

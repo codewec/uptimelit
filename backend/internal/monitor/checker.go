@@ -117,6 +117,8 @@ func connectionErrorCode(err error) string {
 		return "timeout"
 	case errors.As(err, &dnsError):
 		return "dns_error"
+	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
+		return "permission_denied"
 	case errors.Is(err, syscall.ECONNREFUSED):
 		return "connection_refused"
 	case errors.Is(err, syscall.ENETUNREACH), errors.Is(err, syscall.EHOSTUNREACH):

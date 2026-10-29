@@ -20,6 +20,8 @@ func TestConnectionErrorCode(t *testing.T) {
 		{&net.DNSError{IsTimeout: true}, "timeout"},
 		{&net.DNSError{IsNotFound: true}, "dns_error"},
 		{syscall.ECONNREFUSED, "connection_refused"},
+		{syscall.EACCES, "permission_denied"},
+		{syscall.EPERM, "permission_denied"},
 		{syscall.ENETUNREACH, "network_unreachable"},
 		{syscall.EHOSTUNREACH, "network_unreachable"},
 		{syscall.ECONNRESET, "connection_reset"},

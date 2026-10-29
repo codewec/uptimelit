@@ -11,7 +11,7 @@
     onSaved,
   }: { open?: boolean; monitor?: Monitor | null; notifiers: Notifier[]; onSaved: () => void | Promise<void> } = $props()
   let name = $state(''),
-    type = $state<'http' | 'tcp'>('http'),
+    type = $state<Monitor['type']>('http'),
     url = $state(''),
     interval = $state(60),
     threshold = $state(3),
@@ -50,7 +50,7 @@
   }
 </script>
 
-<Modal bind:open title={monitor ? 'Edit monitor' : 'New monitor'} description="Keep an eye on a website, API or TCP service.">
+<Modal bind:open title={monitor ? 'Edit monitor' : 'New monitor'} description="Keep an eye on a website, API, TCP service or host.">
   <form onsubmit={save} class="space-y-4">
     {#if error}<p role="alert" class="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>{/if}
     <label class="block"
@@ -58,15 +58,19 @@
     >
     <label class="block"
       ><span class={label}>Monitor type</span><select class={field} bind:value={type}
-        ><option value="http">HTTP / HTTPS</option><option value="tcp">TCP port</option></select
+        ><option value="http">HTTP / HTTPS</option><option value="tcp">TCP port</option><option value="ping">Ping (ICMP)</option></select
       ></label
     >
     <label class="block"
-      ><span class={label}>{type === 'http' ? 'URL' : 'Address'}</span><input
+      ><span class={label}>{type === 'http' ? 'URL' : type === 'ping' ? 'Host' : 'Address'}</span><input
         class={field}
         type={type === 'http' ? 'url' : 'text'}
         bind:value={url}
-        placeholder={type === 'http' ? 'https://api.example.com/health' : 'db.example.com:5432'}
+        placeholder={type === 'http'
+          ? 'https://api.example.com/health'
+          : type === 'ping'
+            ? 'example.com or 192.0.2.1'
+            : 'db.example.com:5432'}
         required
       /></label
     >

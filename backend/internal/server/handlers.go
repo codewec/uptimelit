@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -57,6 +59,24 @@ func validateEndpoint(ep *model.Endpoint) error {
 		if err != nil {
 			return jsonError("TCP monitor address must be in the format host:port (e.g. 1.1.1.1:53 or example.com:443)")
 		}
+	} else if ep.Type == "ping" {
+		if _, err := netip.ParseAddr(ep.URL); err != nil {
+			host := strings.TrimSuffix(ep.URL, ".")
+			if len(host) == 0 || len(host) > 253 {
+				return jsonError("Ping target must be a hostname or IP address without a port or URL scheme")
+			}
+			for _, label := range strings.Split(host, ".") {
+				if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+					return jsonError("invalid Ping hostname")
+				}
+				for _, char := range label {
+					if !(char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '-') {
+						return jsonError("Ping target must be a hostname or IP address without a port or URL scheme")
+					}
+				}
+			}
+		}
+
 	} else {
 		return jsonError("unsupported endpoint type")
 	}

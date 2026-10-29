@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { connectionStatus } from '../lib/checks'
+  import { networkStatus } from '../lib/checks'
   import Modal from './Modal.svelte'
   import Button from './Button.svelte'
   import { api, type Monitor, type Check } from '../lib/api'
@@ -42,7 +42,7 @@
         <thead class="sticky top-0 bg-surface text-text-muted"
           ><tr class="border-b border-border-soft"
             ><th class="px-2 py-3 font-medium">Time</th><th class="px-2 py-3 font-medium">Status</th><th class="px-2 py-3 font-medium"
-              >{monitor?.type === 'tcp' ? 'Connection' : 'HTTP'}</th
+              >{monitor?.type === 'http' ? 'HTTP' : monitor?.type === 'ping' ? 'ICMP' : 'Connection'}</th
             ><th class="px-2 py-3 text-right font-medium">Response</th></tr
           ></thead
         ><tbody
@@ -50,7 +50,9 @@
               ><td class="px-2 py-3 text-text-muted">{new Date(check.checked_at).toLocaleString()}</td><td
                 class={'px-2 py-3 font-medium ' + (check.is_up ? 'text-success' : 'text-danger')}>{check.is_up ? 'Up' : 'Down'}</td
               ><td class="px-2 py-3 tabular-nums"
-                >{monitor?.type === 'tcp' ? connectionStatus(check.is_up, check.error_code) : (check.status_code ?? '—')}</td
+                >{monitor?.type === 'http'
+                  ? (check.status_code ?? '—')
+                  : networkStatus(check.is_up, check.error_code, monitor?.type ?? 'tcp')}</td
               ><td class="px-2 py-3 text-right tabular-nums">{check.response_time_ms ?? 0} ms</td></tr
             >{/each}</tbody
         >

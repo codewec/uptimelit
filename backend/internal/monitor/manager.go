@@ -150,9 +150,12 @@ func (m *Manager) runWorker(ctx context.Context, ep model.Endpoint) {
 	}
 
 	var checker Checker
-	if ep.Type == "tcp" {
+	switch ep.Type {
+	case "tcp":
 		checker = NewTCPChecker(ep.URL)
-	} else {
+	case "ping":
+		checker = NewPingChecker(ep.URL)
+	default:
 		checker = NewHTTPChecker(ep.URL)
 	}
 

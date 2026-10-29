@@ -4,7 +4,7 @@
 
 <h1 align="center">UptimeLit</h1>
 
-<p align="center">A modern, self-hosted uptime monitor for your websites, APIs and TCP services.</p>
+<p align="center">A modern, self-hosted uptime monitor for your websites, APIs, TCP services and hosts via ICMP Ping.</p>
 
 <p align="center">
   <a href="https://github.com/codewec/uptimelit/actions/workflows/docker-dev.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/codewec/uptimelit/docker-dev.yml?branch=main&label=build"></a>
@@ -28,7 +28,7 @@ See the [screenshot gallery](docs/guide/screenshots.md) for full-size previews.
 
 ## Highlights
 
-- HTTP/HTTPS and TCP monitoring with configurable intervals and failure thresholds
+- HTTP/HTTPS, TCP and ICMP Ping monitoring with configurable intervals and failure thresholds
 - Live status, response times, HTTP status codes, recent checks and 24-hour uptime
 - One-click **All**, **Up**, **Down** and **Paused** filters; **All** also clears the search
 - Compact navbar controls for adding monitors, notifications, themes, administration and profile

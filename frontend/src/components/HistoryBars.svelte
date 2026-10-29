@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { connectionStatus } from '../lib/checks'
+  import { networkStatus } from '../lib/checks'
   import { tick } from 'svelte'
   import { Tooltip } from 'bits-ui'
   import type { Check } from '../lib/api'
@@ -15,7 +15,7 @@
     checks?: Check[]
     paused?: boolean
     monitorName: string
-    protocol: 'http' | 'tcp'
+    protocol: 'http' | 'tcp' | 'ping'
     onHistory: () => void
   } = $props()
 
@@ -110,8 +110,8 @@
                     <dt class="text-text-muted">HTTP status</dt>
                     <dd class="font-medium tabular-nums">{check.status_code ?? 'No response'}</dd>
                   </div>{:else}<div class="flex justify-between gap-3">
-                    <dt class="text-text-muted">Connection</dt>
-                    <dd class="text-right font-medium">{connectionStatus(check.is_up, check.error_code)}</dd>
+                    <dt class="text-text-muted">{protocol === 'ping' ? 'ICMP' : 'Connection'}</dt>
+                    <dd class="text-right font-medium">{networkStatus(check.is_up, check.error_code, protocol)}</dd>
                   </div>{/if}
                 <div class="flex justify-between gap-3">
                   <dt class="text-text-muted">Response time</dt>

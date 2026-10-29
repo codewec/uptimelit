@@ -1,6 +1,6 @@
 # UptimeLit documentation
 
-UptimeLit monitors websites, APIs and TCP services from a Go server, stores their history in SQLite and presents it in a Svelte web interface. Each user has a private workspace; administrators manage accounts without gaining access to other users' monitoring data.
+UptimeLit monitors websites, APIs, TCP services and hosts via ICMP Ping from a Go server, stores their history in SQLite and presents it in a Svelte web interface. Each user has a private workspace; administrators manage accounts without gaining access to other users' monitoring data.
 
 ## Start here
 

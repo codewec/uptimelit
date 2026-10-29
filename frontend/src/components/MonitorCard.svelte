@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { connectionStatus } from '../lib/checks'
+  import { networkStatus } from '../lib/checks'
   import { DropdownMenu } from 'bits-ui'
   import type { Monitor, Notifier } from '../lib/api'
   import Icon from './Icon.svelte'
@@ -37,7 +37,7 @@
 <section class="relative h-full rounded-card border border-border-soft bg-surface/80 p-4 backdrop-blur-sm">
   <header class="mb-4 flex items-start gap-2">
     <span class="mt-0.5 rounded-md bg-bg-elevated p-1.5 text-text-muted"
-      ><Icon name={monitor.type === 'tcp' ? 'activity' : 'monitor'} size={18} /></span
+      ><Icon name={monitor.type === 'http' ? 'monitor' : 'activity'} size={18} /></span
     >
     <div class="min-w-0 flex-1">
       <h2 class="truncate text-sm font-semibold tracking-tight text-text" title={monitor.name}>{monitor.name}</h2>
@@ -95,9 +95,11 @@
       <p class="mt-0.5 text-xs font-semibold tabular-nums">{monitor.response_time_ms == null ? '—' : monitor.response_time_ms + ' ms'}</p>
     </div>
     <div>
-      <p class="text-[10px] text-text-subtle">{monitor.type === 'tcp' ? 'Connection' : 'HTTP status'}</p>
+      <p class="text-[10px] text-text-subtle">
+        {monitor.type === 'http' ? 'HTTP status' : monitor.type === 'ping' ? 'ICMP' : 'Connection'}
+      </p>
       <p class="mt-0.5 text-xs font-semibold tabular-nums">
-        {monitor.type === 'tcp' ? connectionStatus(monitor.is_up, monitor.error_code) : (monitor.status_code ?? '—')}
+        {monitor.type === 'http' ? (monitor.status_code ?? '—') : networkStatus(monitor.is_up, monitor.error_code, monitor.type)}
       </p>
     </div>
   </div>

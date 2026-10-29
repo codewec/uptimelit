@@ -1,4 +1,6 @@
 const connectionErrors: Record<string, string> = {
+  permission_denied: 'Permission denied',
+  ping_error: 'Ping error',
   timeout: 'Timeout',
   connection_refused: 'Connection refused',
   dns_error: 'DNS error',
@@ -7,8 +9,8 @@ const connectionErrors: Record<string, string> = {
   connection_error: 'Connection error',
 }
 
-export function connectionStatus(isUp: boolean | null | undefined, errorCode?: string): string {
+export function networkStatus(isUp: boolean | null | undefined, errorCode: string | undefined, protocol: 'tcp' | 'ping'): string {
   if (isUp == null) return '—'
-  if (isUp) return 'Connected'
-  return connectionErrors[errorCode ?? ''] ?? 'Failed'
+  if (isUp) return protocol === 'ping' ? 'Reply received' : 'Connected'
+  return connectionErrors[errorCode ?? ''] ?? (protocol === 'ping' ? 'No reply' : 'Failed')
 }

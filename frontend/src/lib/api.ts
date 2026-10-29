@@ -19,7 +19,7 @@ export type Monitor = {
   error_code?: string
   id: number
   owner_id: string
-  type: 'http' | 'tcp'
+  type: 'http' | 'tcp' | 'ping'
   name: string
   url: string
   interval_seconds: number
