@@ -3,9 +3,8 @@ package model
 import "time"
 
 type Endpoint struct {
+	OwnerID         string    `json:"owner_id"`
 	ID              int64     `json:"id"`
-	UID             *string   `json:"uid"`
-	Source          string    `json:"source"`
 	Type            string    `json:"type"`
 	Name            string    `json:"name"`
 	URL             string    `json:"url"`
@@ -44,16 +43,10 @@ type EndpointWithStats struct {
 }
 
 type Notifier struct {
+	OwnerID    string    `json:"owner_id"`
 	ID         int64     `json:"id"`
-	UID        *string   `json:"uid"`
-	Source     string    `json:"source"`
 	Name       string    `json:"name"`
 	Type       string    `json:"type"`        // e.g., 'telegram', 'pushover', 'redis'
 	ConfigJSON string    `json:"config_json"` // JSON string containing credentials/config
 	CreatedAt  time.Time `json:"created_at"`
-}
-
-type EndpointNotifier struct {
-	EndpointID int64 `json:"endpoint_id"`
-	NotifierID int64 `json:"notifier_id"`
 }

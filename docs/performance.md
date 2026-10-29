@@ -5,14 +5,14 @@ Tested on the following environment with a pre-generated database of ~43200000 c
 ```bash
 # To run with constrants
 systemd-run --user --scope \
-    --unit=tinypulse-stress \
+    --unit=uptimelit-stress \
     -p CPUQuota=100% \
     -p MemoryMax=1G \
     -p MemorySwapMax=0 \
-    ./tinypulse --addr 3000
+    ./uptimelit --addr 3000
 
 # To read
-systemd-cgtop -p /user.slice/user-$(id -u).slice/$(systemctl show --property ControlGroup --value tinypulse-stress.scope)
+systemd-cgtop -p /user.slice/user-$(id -u).slice/$(systemctl show --property ControlGroup --value uptimelit-stress.scope)
 ```
 
 A quick chart.

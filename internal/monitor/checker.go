@@ -58,7 +58,7 @@ func (c *HTTPChecker) doRequest(ctx context.Context, url, method string) (*int, 
 	}
 
 	// Add a User-Agent so we don't get blocked by WAFs like Cloudflare
-	req.Header.Set("User-Agent", "TinyPulse/1.0 (https://github.com/AkaCoder404/tinypulse)")
+	req.Header.Set("User-Agent", "UptimeLit/1.0 (https://github.com/codewec/uptimelit)")
 
 	resp, err := c.client.Do(req)
 	if err != nil {

@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"net/http"
 	"sync"
 	"time"
 
-	"tinypulse/internal/db"
-	"tinypulse/internal/model"
-	"tinypulse/internal/notifier"
+	"uptimelit/internal/db"
+	"uptimelit/internal/model"
+	"uptimelit/internal/notifier"
 )
 
 type endpointState struct {
@@ -24,7 +23,6 @@ const resultsBufferCapacity = 4096
 // Manager orchestrates one goroutine per monitored endpoint.
 type Manager struct {
 	db           *db.DB
-	client       *http.Client
 	dispatcher   *notifier.Dispatcher
 	StateManager *StateManager
 	mu           sync.RWMutex
@@ -40,17 +38,9 @@ func New(database *db.DB, dispatcher *notifier.Dispatcher) *Manager {
 		db:           database,
 		dispatcher:   dispatcher,
 		StateManager: NewStateManager(database),
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-			Transport: &http.Transport{
-				DisableKeepAlives:     true,
-				TLSHandshakeTimeout:   5 * time.Second,
-				ResponseHeaderTimeout: 5 * time.Second,
-			},
-		},
-		workers: make(map[int64]context.CancelFunc),
-		state:   make(map[int64]endpointState),
-		results: make(chan *model.Check, resultsBufferCapacity),
+		workers:      make(map[int64]context.CancelFunc),
+		state:        make(map[int64]endpointState),
+		results:      make(chan *model.Check, resultsBufferCapacity),
 	}
 }
 
@@ -122,6 +112,9 @@ func (m *Manager) spawn(parent context.Context, ep model.Endpoint) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, err := m.db.GetEndpoint(parent, ep.ID); err != nil {
+		return
+	}
 	if _, ok := m.workers[ep.ID]; ok {
 		return // already running
 	}
@@ -181,6 +174,14 @@ func (m *Manager) check(ctx context.Context, ep model.Endpoint, checker Checker)
 	defer cancel()
 
 	statusCode, responseTimeMs, isUp := checker.Check(reqCtx)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if ctx.Err() != nil {
+		return
+	}
+	if _, err := m.db.GetEndpoint(ctx, ep.ID); err != nil {
+		return
+	}
 
 	check := &model.Check{
 		EndpointID:     ep.ID,
@@ -198,7 +199,6 @@ func (m *Manager) check(ctx context.Context, ep model.Endpoint, checker Checker)
 		slog.Warn("db writer channel full, dropping historical check metric", "endpoint_id", ep.ID)
 	}
 
-	m.mu.Lock()
 	currentState, hadLast := m.state[ep.ID]
 
 	newState := endpointState{
@@ -213,7 +213,6 @@ func (m *Manager) check(ctx context.Context, ep model.Endpoint, checker Checker)
 	}
 
 	m.state[ep.ID] = newState
-	m.mu.Unlock()
 
 	if !hadLast {
 		// First check ever since app start, don't alert on state change

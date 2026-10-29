@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"tinypulse/internal/db"
-	"tinypulse/internal/model"
+	"uptimelit/internal/db"
+	"uptimelit/internal/model"
 )
 
 type EndpointStats struct {
@@ -51,7 +51,7 @@ func (sm *StateManager) Hydrate(ctx context.Context) error {
 
 	// TODO(Performance): This currently executes 3 queries per endpoint (O(N)).
 	// For <1000 endpoints, SQLite handles this sequentially in ~100ms, making it acceptable for startup.
-	// If TinyPulse scales to thousands of endpoints, this loop should be refactored into two bulk queries:
+	// If UptimeLit scales to thousands of endpoints, this loop should be refactored into two bulk queries:
 	// 1. Conditional aggregation for 24h/30d uptimes (SELECT ... AVG(CASE WHEN ...)).
 	// 2. Window functions for the recent 50 checks (ROW_NUMBER() OVER (PARTITION BY endpoint_id)).
 	for _, ep := range endpoints {
@@ -213,17 +213,6 @@ func (s *EndpointStats) Clone() *EndpointStats {
 	}
 
 	return &copyStats
-}
-
-func (sm *StateManager) GetStats(id int64) *EndpointStats {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	if stats, exists := sm.state[id]; exists {
-		return stats.Clone()
-	}
-
-	return nil
 }
 
 func (sm *StateManager) GetDashboardStats() map[int64]*EndpointStats {

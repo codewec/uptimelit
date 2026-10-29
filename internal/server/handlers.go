@@ -1,7 +1,9 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"tinypulse/internal/model"
-	"tinypulse/internal/notifier"
+	"uptimelit/internal/model"
+	"uptimelit/internal/notifier"
 )
 
 func respondJSON(w http.ResponseWriter, status int, payload any) {
@@ -69,24 +71,8 @@ type jsonError string
 
 func (e jsonError) Error() string { return string(e) }
 
-type StatusResponse struct {
-	Version          string `json:"version"`
-	ConfigActive     bool   `json:"config_active"`
-	ConfigItemsCount int    `json:"config_items_count"`
-}
-
 func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
-	count, err := s.db.CountConfigItems(r.Context())
-	if err != nil {
-		slog.Warn("failed to count config items", "error", err)
-		count = 0
-	}
-
-	respondJSON(w, http.StatusOK, StatusResponse{
-		Version:          "0.1.0-beta.4", // Hardcoded for now, could be passed in
-		ConfigActive:     s.configActive,
-		ConfigItemsCount: count,
-	})
+	respondJSON(w, 200, map[string]string{"version": "0.2.0"})
 }
 
 func (s *Server) listEndpoints(w http.ResponseWriter, r *http.Request) {
@@ -97,11 +83,11 @@ func (s *Server) listEndpoints(w http.ResponseWriter, r *http.Request) {
 	}
 
 	statsMap := s.manager.StateManager.GetDashboardStats()
-	
+
 	endpoints := make([]model.EndpointWithStats, len(rawEndpoints))
 	for i, ep := range rawEndpoints {
 		endpoints[i].Endpoint = ep
-		
+
 		if stats, exists := statsMap[ep.ID]; exists {
 			endpoints[i].StatusCode = stats.LastStatusCode
 			endpoints[i].ResponseTimeMs = stats.LastResponseMs
@@ -109,7 +95,7 @@ func (s *Server) listEndpoints(w http.ResponseWriter, r *http.Request) {
 			endpoints[i].CheckedAt = stats.LastCheckedAt
 			endpoints[i].Uptime24h = stats.Uptime24h
 			endpoints[i].Uptime30d = stats.Uptime30d
-			
+
 			if len(stats.RecentChecks) > 0 {
 				endpoints[i].RecentChecks = stats.RecentChecks
 			} else {
@@ -147,15 +133,13 @@ func (s *Server) createEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.CreateEndpoint(r.Context(), &ep); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if len(ep.NotifierIDs) > 0 {
-		if err := s.db.SetEndpointNotifiers(r.Context(), ep.ID, ep.NotifierIDs); err != nil {
-			slog.Error("failed to set notifiers for new endpoint", "error", err)
+	if err := s.db.SaveEndpoint(r.Context(), &ep, true); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, 400, "invalid notifier selection")
+			return
 		}
+		respondError(w, http.StatusInternalServerError, "could not save endpoint")
+		return
 	}
 
 	if err := s.manager.Add(r.Context(), ep.ID); err != nil {
@@ -185,14 +169,10 @@ func (s *Server) updateEndpoint(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	
-	existingEp, err := s.db.GetEndpoint(r.Context(), id)
+
+	_, err = s.db.GetEndpoint(r.Context(), id)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "endpoint not found")
-		return
-	}
-	if existingEp.Source == "config" {
-		respondError(w, http.StatusForbidden, "this endpoint is managed by configuration and cannot be edited via the UI")
 		return
 	}
 
@@ -207,13 +187,13 @@ func (s *Server) updateEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 	ep.ID = id
 
-	if err := s.db.UpdateEndpoint(r.Context(), &ep); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+	if err := s.db.SaveEndpoint(r.Context(), &ep, false); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, 400, "invalid monitor or notifier selection")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "could not save endpoint")
 		return
-	}
-
-	if err := s.db.SetEndpointNotifiers(r.Context(), ep.ID, ep.NotifierIDs); err != nil {
-		slog.Error("failed to update notifiers for endpoint", "endpoint_id", ep.ID, "error", err)
 	}
 
 	if err := s.manager.Edit(r.Context(), ep.ID); err != nil {
@@ -230,13 +210,9 @@ func (s *Server) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingEp, err := s.db.GetEndpoint(r.Context(), id)
+	_, err = s.db.GetEndpoint(r.Context(), id)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "endpoint not found")
-		return
-	}
-	if existingEp.Source == "config" {
-		respondError(w, http.StatusForbidden, "this endpoint is managed by configuration and cannot be deleted via the UI")
 		return
 	}
 
@@ -255,13 +231,9 @@ func (s *Server) pauseEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingEp, err := s.db.GetEndpoint(r.Context(), id)
+	_, err = s.db.GetEndpoint(r.Context(), id)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "endpoint not found")
-		return
-	}
-	if existingEp.Source == "config" {
-		respondError(w, http.StatusForbidden, "this endpoint is managed by configuration and cannot be paused via the UI")
 		return
 	}
 
@@ -390,13 +362,9 @@ func (s *Server) updateNotifier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingN, err := s.db.GetNotifier(r.Context(), id)
+	_, err = s.db.GetNotifier(r.Context(), id)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "notifier not found")
-		return
-	}
-	if existingN.Source == "config" {
-		respondError(w, http.StatusForbidden, "this notifier is managed by configuration and cannot be edited via the UI")
 		return
 	}
 
@@ -406,6 +374,7 @@ func (s *Server) updateNotifier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n.ID = id
+	n.OwnerID = current(r).User.ID
 
 	if n.Name == "" || n.Type == "" || n.ConfigJSON == "" {
 		respondError(w, http.StatusBadRequest, "name, type, and config_json are required")
@@ -431,13 +400,9 @@ func (s *Server) deleteNotifier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingN, err := s.db.GetNotifier(r.Context(), id)
+	_, err = s.db.GetNotifier(r.Context(), id)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "notifier not found")
-		return
-	}
-	if existingN.Source == "config" {
-		respondError(w, http.StatusForbidden, "this notifier is managed by configuration and cannot be deleted via the UI")
 		return
 	}
 
@@ -467,7 +432,7 @@ func (s *Server) testNotifier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := provider.Send(r.Context(), 0, "test", "🧪 TinyPulse Test", "This is a test notification from TinyPulse!"); err != nil {
+	if err := provider.Send(r.Context(), 0, "test", "🧪 UptimeLit Test", "This is a test notification from UptimeLit!"); err != nil {
 		respondError(w, http.StatusInternalServerError, fmt.Sprintf("test failed: %v", err))
 		return
 	}

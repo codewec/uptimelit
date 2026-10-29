@@ -1,6 +1,6 @@
 # Built binary
-/tinypulse
-/tinypulse.exe
+/uptimelit
+/uptimelit.exe
 
 # Go build artifacts
 *.exe

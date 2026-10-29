@@ -1,44 +1,55 @@
 package server
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
+	"time"
+	"uptimelit/internal/auth"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"tinypulse/internal/db"
-	"tinypulse/internal/monitor"
+	"uptimelit/internal/db"
+	"uptimelit/internal/monitor"
 )
 
-type Server struct {
-	router       *chi.Mux
-	db           *db.DB
-	manager      *monitor.Manager
-	password     string
-	configActive bool
+type oidcAuthenticator interface {
+	AuthorizationURL(state, nonce, verifier string) string
+	Authenticate(context.Context, string, string, string) (*auth.OIDCIdentity, error)
 }
 
-func New(database *db.DB, manager *monitor.Manager, password string, configActive bool) *Server {
-	s := &Server{
-		router:       chi.NewRouter(),
-		db:           database,
-		manager:      manager,
-		password:     password,
-		configActive: configActive,
+type Server struct {
+	router     *chi.Mux
+	db         *db.DB
+	manager    *monitor.Manager
+	auth       *auth.Service
+	authConfig auth.Config
+	oidc       oidcAuthenticator
+	limiter    limiter
+}
+
+func New(database *db.DB, manager *monitor.Manager, cfg auth.Config) (*Server, error) {
+	svc, err := auth.New(database, cfg)
+	if err != nil {
+		return nil, err
 	}
-
-	s.router.Use(middleware.Logger)
-	s.router.Use(middleware.Recoverer)
-
-	if s.password != "" {
-		// Use a hardcoded username like "admin" since they only provide a password
-		s.router.Use(middleware.BasicAuth("TinyPulse", map[string]string{
-			"admin": s.password,
-		}))
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	oidc, err := auth.NewOIDCAuthenticator(ctx, &cfg)
+	if err != nil {
+		return nil, err
 	}
-
+	if cfg.OIDCInsecureSkipTLSVerify {
+		slog.Warn("OIDC TLS certificate verification is disabled")
+	}
+	s := &Server{router: chi.NewRouter(), db: database, manager: manager, auth: svc, authConfig: cfg}
+	if oidc != nil {
+		s.oidc = oidc
+	}
+	s.router.Use(middleware.Logger, middleware.Recoverer)
 	s.routes()
-	return s
+	return s, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -50,27 +61,31 @@ func (s *Server) routes() {
 	s.router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(StaticFiles()))))
 
 	s.router.Route("/api", func(r chi.Router) {
-		r.Use(middleware.SetHeader("Content-Type", "application/json"))
+		r.Use(middleware.SetHeader("Content-Type", "application/json"), s.authentication)
+		s.authRoutes(r)
+		r.Group(func(r chi.Router) {
+			r.Use(requireAuth, s.resourceOwner)
 
-		// System Status
-		r.Get("/status", s.getStatus)
+			// System Status
+			r.Get("/status", s.getStatus)
 
-		// Endpoints
-		r.Get("/endpoints", s.listEndpoints)
-		r.Post("/endpoints", s.createEndpoint)
-		r.Get("/endpoints/{id}", s.getEndpoint)
-		r.Put("/endpoints/{id}", s.updateEndpoint)
-		r.Delete("/endpoints/{id}", s.deleteEndpoint)
-		r.Post("/endpoints/{id}/pause", s.pauseEndpoint)
-		r.Get("/endpoints/{id}/checks", s.listChecks)
-		r.Get("/endpoints/{id}/history", s.history)
+			// Endpoints
+			r.Get("/endpoints", s.listEndpoints)
+			r.Post("/endpoints", s.createEndpoint)
+			r.Get("/endpoints/{id}", s.getEndpoint)
+			r.Put("/endpoints/{id}", s.updateEndpoint)
+			r.Delete("/endpoints/{id}", s.deleteEndpoint)
+			r.Post("/endpoints/{id}/pause", s.pauseEndpoint)
+			r.Get("/endpoints/{id}/checks", s.listChecks)
+			r.Get("/endpoints/{id}/history", s.history)
 
-		// Notifiers
-		r.Get("/notifiers", s.listNotifiers)
-		r.Post("/notifiers", s.createNotifier)
-		r.Get("/notifiers/{id}", s.getNotifier)
-		r.Put("/notifiers/{id}", s.updateNotifier)
-		r.Delete("/notifiers/{id}", s.deleteNotifier)
-		r.Post("/notifiers/{id}/test", s.testNotifier)
+			// Notifiers
+			r.Get("/notifiers", s.listNotifiers)
+			r.Post("/notifiers", s.createNotifier)
+			r.Get("/notifiers/{id}", s.getNotifier)
+			r.Put("/notifiers/{id}", s.updateNotifier)
+			r.Delete("/notifiers/{id}", s.deleteNotifier)
+			r.Post("/notifiers/{id}/test", s.testNotifier)
+		})
 	})
 }

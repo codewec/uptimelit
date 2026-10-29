@@ -1,15 +1,15 @@
 .PHONY: build run test clean
 
-BINARY=tinypulse
+BINARY=uptimelit
 
 build:
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) ./cmd/tinypulse
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) ./cmd/uptimelit
 
 run:
-	go run ./cmd/tinypulse
+	go run ./cmd/uptimelit
 
 test:
 	go test -v ./...
 
 clean:
-	rm -f $(BINARY) *.db *.db-shm *.db-wal
+	rm -f $(BINARY)

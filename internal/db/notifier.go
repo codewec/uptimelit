@@ -3,26 +3,27 @@ package db
 import (
 	"context"
 
-	"tinypulse/internal/model"
+	"uptimelit/internal/model"
 )
 
 func (d *DB) CreateNotifier(ctx context.Context, n *model.Notifier) error {
 	res, err := d.conn.ExecContext(ctx,
-		`INSERT INTO notifiers (name, type, config_json, source) VALUES (?, ?, ?, 'ui')`,
-		n.Name, n.Type, n.ConfigJSON)
+		`INSERT INTO notifiers (name, type, config_json, owner_id) VALUES (?, ?, ?, ?)`,
+		n.Name, n.Type, n.ConfigJSON, Owner(ctx))
 	if err != nil {
 		return err
 	}
 	id, _ := res.LastInsertId()
 	n.ID = id
+	n.OwnerID = Owner(ctx)
 	return nil
 }
 
 func (d *DB) GetNotifier(ctx context.Context, id int64) (*model.Notifier, error) {
 	row := d.conn.QueryRowContext(ctx,
-		`SELECT id, uid, source, name, type, config_json, created_at FROM notifiers WHERE id = ?`, id)
+		`SELECT id, owner_id, name, type, config_json, created_at FROM notifiers WHERE id = ? AND (? = '' OR owner_id = ?)`, id, Owner(ctx), Owner(ctx))
 	n := &model.Notifier{}
-	if err := row.Scan(&n.ID, &n.UID, &n.Source, &n.Name, &n.Type, &n.ConfigJSON, &n.CreatedAt); err != nil {
+	if err := row.Scan(&n.ID, &n.OwnerID, &n.Name, &n.Type, &n.ConfigJSON, &n.CreatedAt); err != nil {
 		return nil, err
 	}
 	return n, nil
@@ -30,18 +31,18 @@ func (d *DB) GetNotifier(ctx context.Context, id int64) (*model.Notifier, error)
 
 func (d *DB) UpdateNotifier(ctx context.Context, n *model.Notifier) error {
 	_, err := d.conn.ExecContext(ctx,
-		`UPDATE notifiers SET name = ?, type = ?, config_json = ? WHERE id = ?`,
-		n.Name, n.Type, n.ConfigJSON, n.ID)
+		`UPDATE notifiers SET name = ?, type = ?, config_json = ? WHERE id = ? AND owner_id = ?`,
+		n.Name, n.Type, n.ConfigJSON, n.ID, Owner(ctx))
 	return err
 }
 
 func (d *DB) DeleteNotifier(ctx context.Context, id int64) error {
-	_, err := d.conn.ExecContext(ctx, `DELETE FROM notifiers WHERE id = ?`, id)
+	_, err := d.conn.ExecContext(ctx, `DELETE FROM notifiers WHERE id = ? AND (? = '' OR owner_id = ?)`, id, Owner(ctx), Owner(ctx))
 	return err
 }
 
 func (d *DB) ListNotifiers(ctx context.Context) ([]model.Notifier, error) {
-	rows, err := d.conn.QueryContext(ctx, `SELECT id, uid, source, name, type, config_json, created_at FROM notifiers ORDER BY id DESC`)
+	rows, err := d.conn.QueryContext(ctx, `SELECT id, owner_id, name, type, config_json, created_at FROM notifiers WHERE (? = '' OR owner_id = ?) ORDER BY id DESC`, Owner(ctx), Owner(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func (d *DB) ListNotifiers(ctx context.Context) ([]model.Notifier, error) {
 	var notifiers []model.Notifier
 	for rows.Next() {
 		var n model.Notifier
-		if err := rows.Scan(&n.ID, &n.UID, &n.Source, &n.Name, &n.Type, &n.ConfigJSON, &n.CreatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.OwnerID, &n.Name, &n.Type, &n.ConfigJSON, &n.CreatedAt); err != nil {
 			return nil, err
 		}
 		notifiers = append(notifiers, n)
@@ -60,9 +61,10 @@ func (d *DB) ListNotifiers(ctx context.Context) ([]model.Notifier, error) {
 
 func (d *DB) GetNotifiersForEndpoint(ctx context.Context, endpointID int64) ([]model.Notifier, error) {
 	rows, err := d.conn.QueryContext(ctx, `
-		SELECT n.id, n.uid, n.source, n.name, n.type, n.config_json, n.created_at 
+		SELECT n.id, n.owner_id, n.name, n.type, n.config_json, n.created_at
 		FROM notifiers n
 		JOIN endpoint_notifiers en ON n.id = en.notifier_id
+		JOIN endpoints e ON e.id = en.endpoint_id AND e.owner_id = n.owner_id
 		WHERE en.endpoint_id = ?`, endpointID)
 	if err != nil {
 		return nil, err
@@ -72,7 +74,7 @@ func (d *DB) GetNotifiersForEndpoint(ctx context.Context, endpointID int64) ([]m
 	var notifiers []model.Notifier
 	for rows.Next() {
 		var n model.Notifier
-		if err := rows.Scan(&n.ID, &n.UID, &n.Source, &n.Name, &n.Type, &n.ConfigJSON, &n.CreatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.OwnerID, &n.Name, &n.Type, &n.ConfigJSON, &n.CreatedAt); err != nil {
 			return nil, err
 		}
 		notifiers = append(notifiers, n)
@@ -80,30 +82,9 @@ func (d *DB) GetNotifiersForEndpoint(ctx context.Context, endpointID int64) ([]m
 	return notifiers, rows.Err()
 }
 
-// SetEndpointNotifiers replaces all linked notifiers for an endpoint within a transaction.
-func (d *DB) SetEndpointNotifiers(ctx context.Context, endpointID int64, notifierIDs []int64) error {
-	tx, err := d.conn.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.ExecContext(ctx, `DELETE FROM endpoint_notifiers WHERE endpoint_id = ?`, endpointID); err != nil {
-		return err
-	}
-
-	for _, nid := range notifierIDs {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO endpoint_notifiers (endpoint_id, notifier_id) VALUES (?, ?)`, endpointID, nid); err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
-}
-
 // GetEndpointNotifierIDs returns a map of endpoint_id -> []notifier_id
 func (d *DB) GetEndpointNotifierIDs(ctx context.Context) (map[int64][]int64, error) {
-	rows, err := d.conn.QueryContext(ctx, `SELECT endpoint_id, notifier_id FROM endpoint_notifiers`)
+	rows, err := d.conn.QueryContext(ctx, `SELECT en.endpoint_id, en.notifier_id FROM endpoint_notifiers en JOIN endpoints e ON e.id = en.endpoint_id WHERE (? = '' OR e.owner_id = ?)`, Owner(ctx), Owner(ctx))
 	if err != nil {
 		return nil, err
 	}

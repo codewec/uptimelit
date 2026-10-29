@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TinyPulse</title>
+    <title>UptimeLit</title>
     <link rel="icon" type="image/png" href="/static/icon.png" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,8 +14,8 @@
     <script>
       // Apply theme immediately to prevent flashing
       if (
-        localStorage.getItem("tinypulse-theme") === "dark" ||
-        (!("tinypulse-theme" in localStorage) &&
+        localStorage.getItem("uptimelit-theme") === "dark" ||
+        (!("uptimelit-theme" in localStorage) &&
           window.matchMedia("(prefers-color-scheme: dark)").matches)
       ) {
         document.documentElement.classList.add("dark");
@@ -57,29 +57,14 @@
   <body
     class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen transition-colors duration-200"
   >
-    <div class="max-w-6xl mx-auto px-4 py-8">
-      
-      <!-- Orphaned Config Banner (Hidden by default) -->
-      <div id="orphan-banner" class="hidden mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg shadow-sm">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-            </svg>
-          </div>
-          <div class="ml-3">
-            <h3 class="text-sm font-medium text-yellow-800">Warning: Orphaned Configuration Items</h3>
-            <div class="mt-1 text-sm text-yellow-700">
-              <p>
-                You have <span id="orphan-count" class="font-bold">0</span> items managed by a YAML configuration, but no config file is currently loaded. 
-                These items are currently locked. To resume managing them through this UI, restart the server with the <code>--eject-config</code> flag. 
-                <a href="https://github.com/AkaCoder404/tinypulse#configuration-as-code-yaml" target="_blank" class="underline hover:text-yellow-800 ml-1">Learn more.</a>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div id="app" hidden class="max-w-6xl mx-auto px-4 py-8">
 
+      <div class="flex flex-wrap justify-end gap-3 mb-5 text-sm">
+        <span id="account-name"></span>
+        <button onclick="openProfile()">Profile</button>
+        <button id="users-button" class="hidden" onclick="openUsers()">Users</button>
+        <button onclick="logoutAccount()">Sign out</button>
+      </div>
       <!-- Header & Navigation -->
       <div
         class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
@@ -87,12 +72,12 @@
         <div class="flex items-center gap-3">
           <img
             src="/static/icon.png"
-            alt="TinyPulse"
+            alt="UptimeLit"
             class="w-10 h-10 rounded-lg shadow-sm"
           />
           <div>
             <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-              TinyPulse
+              UptimeLit
             </h1>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Self-hosted uptime monitoring
@@ -102,7 +87,7 @@
         <div class="flex items-center gap-3">
           <!-- GitHub Link -->
           <a
-            href="https://github.com/AkaCoder404/tinypulse"
+            href="https://github.com/codewec/uptimelit"
             target="_blank"
             rel="noopener noreferrer"
             class="text-gray-400 hover:text-gray-900 dark:hover:text-white transition"
@@ -576,33 +561,38 @@
       </div>
     </div>
 
+    <section id="login-view" class="max-w-md mx-auto px-6 py-16" hidden>
+      <h1 class="text-3xl font-bold mb-3">UptimeLit</h1>
+      <p id="login-description" class="mb-6 text-gray-500">Sign in to your monitoring workspace.</p>
+      <form id="login-form" class="account-form">
+        <label>Username<input name="username" required maxlength="64" pattern="[a-zA-Z0-9._-]+" autocomplete="username"></label>
+        <label>Password<input name="password" type="password" required autocomplete="current-password"></label>
+        <button type="submit">Sign in</button>
+      </form>
+      <a id="oidc-button" class="account-button block text-center mt-4" href="/api/auth/oidc/login" hidden>Sign in with OIDC</a>
+      <p id="login-error" role="alert" class="text-red-600 mt-4"></p>
+    </section>
+    <dialog id="account-dialog" class="account-dialog bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl p-6">
+      <div class="flex justify-between gap-8 mb-5"><h2 id="account-title" class="text-xl font-bold"></h2><button onclick="document.getElementById('account-dialog').close()" aria-label="Close">✕</button></div>
+      <div id="account-content"></div>
+      <p id="account-error" role="alert" class="text-red-600 mt-4"></p>
+    </dialog>
+    <style>
+      [hidden] { display: none !important; }
+      .account-dialog { width: min(760px, 94vw); max-height: 90vh; }
+      .account-dialog::backdrop { background: #0008; }
+      .account-form { display: grid; gap: 16px; }
+      .account-form label { display: grid; gap: 6px; font-size: 14px; }
+      .account-form input, .account-form select { color: inherit; background: transparent; border: 1px solid #9ca3af; border-radius: 8px; padding: 10px; width: 100%; }
+      .account-form input[type=checkbox] { width: auto; }
+      .account-form button[type=submit], .account-button { background: #15803d; color: white; padding: 10px 18px; border-radius: 8px; }
+      .account-user { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #9ca3af55; }
+    </style>
+    <script src="/static/auth.js"></script>
     <script>
       let globalNotifiers = []; // Cache to populate the endpoint modal
       let allEndpoints = []; // Raw data for filtering
       let refreshInterval;
-      let systemStatus = { config_active: false, config_items_count: 0 };
-
-      async function fetchSystemStatus() {
-        try {
-          const res = await fetch("/api/status");
-          if (res.ok) {
-            systemStatus = await res.json();
-            
-            // Handle banner
-            const banner = document.getElementById("orphan-banner");
-            const countSpan = document.getElementById("orphan-count");
-            if (!systemStatus.config_active && systemStatus.config_items_count > 0) {
-              countSpan.textContent = systemStatus.config_items_count;
-              banner.classList.remove("hidden");
-            } else {
-              banner.classList.add("hidden");
-            }
-          }
-        } catch (e) {
-          console.error("fetch status error", e);
-        }
-      }
-
       // --- Theme Management ---
       function toggleThemeMenu() {
         const menu = document.getElementById("theme-menu");
@@ -611,14 +601,14 @@
 
       function setTheme(theme) {
         if (theme === "system") {
-          localStorage.removeItem("tinypulse-theme");
+          localStorage.removeItem("uptimelit-theme");
           if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
             document.documentElement.classList.add("dark");
           } else {
             document.documentElement.classList.remove("dark");
           }
         } else {
-          localStorage.setItem("tinypulse-theme", theme);
+          localStorage.setItem("uptimelit-theme", theme);
           if (theme === "dark") {
             document.documentElement.classList.add("dark");
           } else {
@@ -795,29 +785,10 @@
               ? `<span id="notifier-badge-${ep.id}" class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded text-xs flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg> ${notifierCount}</span>`
               : `<span id="notifier-badge-${ep.id}"></span>`;
 
-          const sourceBadge = ep.source === 'config'
-              ? (systemStatus.config_active 
-                 ? `<span class="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-purple-200 dark:border-purple-800" title="Managed by YAML Configuration">Config</span>`
-                 : `<span class="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-yellow-200 dark:border-yellow-800" title="Created via config, but no config file is loaded">⚠️ Orphaned Config</span>`)
-              : "";
-
           const safeName = escapeHtml(ep.name);
           const safeUrl = escapeHtml(ep.url);
 
-          const actionButtons = ep.source === 'config' ? `
-                      <button onclick="showDetail(${ep.id}, '${safeName}')" title="History" class="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300 transition">
-                        ${iconHistory}
-                      </button>
-                      <button disabled title="Cannot edit config-managed endpoint via UI" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 cursor-not-allowed">
-                        ${iconEdit}
-                      </button>
-                      <button disabled title="Cannot pause config-managed endpoint via UI" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 cursor-not-allowed">
-                        ${ep.paused ? iconPlay : iconPause}
-                      </button>
-                      <button disabled title="Cannot delete config-managed endpoint via UI" class="p-1.5 rounded-md text-gray-300 dark:text-gray-600 cursor-not-allowed">
-                        ${iconDelete}
-                      </button>
-          ` : `
+          const actionButtons = `
                       <button onclick="showDetail(${ep.id}, '${safeName}')" title="History" class="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300 transition">
                         ${iconHistory}
                       </button>
@@ -899,7 +870,7 @@
                       <h3 id="title-${ep.id}" class="font-semibold text-gray-900 dark:text-white text-base truncate">${safeName}</h3>
                       <div id="notifier-container-${ep.id}">${notifiersBadge}</div>
                       ${pausedBadge}
-                      ${sourceBadge}
+
                     </div>
                     <div id="actions-${ep.id}" class="flex items-center gap-0.5 flex-shrink-0">
                       ${actionButtons}
@@ -1132,18 +1103,8 @@
 
         container.innerHTML = notifiers
           .map((n) => {
-            const sourceBadge = n.source === 'config'
-              ? (systemStatus.config_active
-                  ? `<span class="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400 font-bold px-2 py-1 rounded border border-transparent dark:border-purple-800 uppercase tracking-wider" title="Managed by YAML Configuration">Config</span>`
-                  : `<span class="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 font-bold px-2 py-1 rounded border border-transparent dark:border-yellow-800 uppercase tracking-wider" title="Created via config, but no config file is loaded">⚠️ Orphaned Config</span>`)
-              : "";
 
-            const actionButtons = n.source === 'config' ? `
-                <div class="flex gap-2">
-                  <button disabled title="Cannot edit config-managed notifier via UI" class="text-sm font-medium text-gray-300 dark:text-gray-600 cursor-not-allowed">Edit</button>
-                  <button disabled title="Cannot delete config-managed notifier via UI" class="text-sm font-medium text-gray-300 dark:text-gray-600 cursor-not-allowed">Delete</button>
-                </div>
-            ` : `
+            const actionButtons = `
                 <div class="flex gap-2">
                   <button onclick='editNotifier(${JSON.stringify(n).replace(/'/g, "&apos;")})' class="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">Edit</button>
                   <button onclick="deleteNotifier(${n.id})" class="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition">Delete</button>
@@ -1156,7 +1117,7 @@
                 <h3 class="font-semibold text-gray-900 dark:text-white text-lg truncate">${escapeHtml(n.name)}</h3>
                 <div class="flex flex-wrap items-center gap-2 mt-1">
                   <span class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 font-bold px-2 py-1 rounded border border-transparent dark:border-blue-800 uppercase tracking-wider">${n.type}</span>
-                  ${sourceBadge}
+
                 </div>
               </div>
               <div class="text-xs text-gray-400 dark:text-gray-500 mb-4 flex-1">
@@ -1263,7 +1224,7 @@
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Key Prefix</label>
-                <input type="text" id="config-key-prefix" placeholder="tinypulse" value="${escapeHtml(config.key_prefix) || "tinypulse"}" class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="config-key-prefix" placeholder="uptimelit" value="${escapeHtml(config.key_prefix) || "uptimelit"}" class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               </div>
             </div>
             <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-300">
@@ -1305,7 +1266,7 @@
             db: parseInt(document.getElementById("config-db").value, 10) || 0,
             key_prefix:
               document.getElementById("config-key-prefix").value.trim() ||
-              "tinypulse",
+              "uptimelit",
           };
         }
 
@@ -1454,19 +1415,14 @@
         modal.classList.remove("flex");
       }
 
-      // Init
-      fetchSystemStatus().then(() => {
+      function startMonitoring() {
         fetchEndpoints();
-      });
-      refreshInterval = setInterval(() => {
-        fetchSystemStatus().then(() => {
+        refreshInterval = setInterval(() => {
           fetchEndpoints();
-          // Update notifiers as well if we're on that tab
-          if (!document.getElementById("view-notifiers").classList.contains("hidden")) {
-            fetchNotifiers();
-          }
-        });
-      }, 5000);
+          if (!document.getElementById("view-notifiers").classList.contains("hidden")) fetchNotifiers();
+        }, 5000);
+      }
+      initAuth();
     </script>
   </body>
 </html>

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"tinypulse/internal/db"
-	"tinypulse/internal/model"
+	"uptimelit/internal/db"
+	"uptimelit/internal/model"
 )
 
 // Provider defines the interface that all notification services must implement.

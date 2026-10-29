@@ -1,18 +1,22 @@
 services:
-  tinypulse:
+  uptimelit:
     build: .
-    image: tinypulse:local
+    image: uptimelit:local
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      TINYPULSE_PASSWORD: ${TINYPULSE_PASSWORD:?Set TINYPULSE_PASSWORD in .env or your shell}
-      TINYPULSE_DB: /data/tinypulse.db
+      UPTIMELIT_DB: /data/uptimelit.db
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
+      OIDC_BUTTON_TITLE: ${OIDC_BUTTON_TITLE:-Sign in with OIDC}
+      DISABLE_PASSWORD_LOGIN: ${DISABLE_PASSWORD_LOGIN:-false}
+      OIDC_INSECURE_SKIP_TLS_VERIFY: ${OIDC_INSECURE_SKIP_TLS_VERIFY:-false}
+      JWT_SECRET: ${JWT_SECRET:-}
     volumes:
-      - tinypulse-data:/data
-    # Optional declarative configuration:
-    # environment: add TINYPULSE_CONFIG: /etc/tinypulse/config.yml above
-    # volumes: add ./config.yml:/etc/tinypulse/config.yml:ro above
+      - uptimelit-data:/data
 
 volumes:
-  tinypulse-data:
+  uptimelit-data:

@@ -30,7 +30,7 @@ func init() {
 			return nil, fmt.Errorf("redis config missing address")
 		}
 		if r.KeyPrefix == "" {
-			r.KeyPrefix = "tinypulse"
+			r.KeyPrefix = "uptimelit"
 		}
 		return &r, nil
 	})

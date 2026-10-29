@@ -1,227 +1,208 @@
-<h1><img src="tinypulse.png" width="36" height="36" align="center" style="vertical-align: middle; margin-right: 8px;"> TinyPulse</h1>
+<h1><img src="uptimelit.png" width="36" height="36" align="center" style="vertical-align: middle; margin-right: 8px;"> UptimeLit</h1>
 
-A tiny, single-binary, self-hosted uptime monitor for HTTP/HTTPS and TCP endpoints. Drop it on any VPS, NAS, or Raspberry Pi and start monitoring in seconds.
+A self-hosted uptime monitor for HTTP/HTTPS and TCP services, written in Go with a SQLite database and an embedded web interface. Each user has a private workspace for monitors and notification channels.
 
-[![Go Version](https://img.shields.io/badge/go-1.26+-00ADD8.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/go-1.26.2+-00ADD8.svg)](go.mod)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Binary Size](https://img.shields.io/badge/binary-%3C%2012%20MB-success)
-![Memory](https://img.shields.io/badge/memory-%3C%2030%20MB-success)
 
-> This application is still in beta testing.
+UptimeLit was originally based on [TinyPulse](https://github.com/AkaCoder404/tinypulse) by AkaCoder404.
+
+> The project is in beta.
 
 ## Features
 
-Why use TinyPulse?
+- HTTP/HTTPS and TCP monitoring with configurable check intervals and failure thresholds.
+- Current service status, response times, recent check history and 24-hour uptime statistics.
+- SQLite storage with WAL mode, automatic schema migrations and 90-day check retention.
+- Telegram, Pushover and Redis notifications for outages and recoveries.
+- Private monitors, history and notification channels for every user, including administrators.
+- Administrator-managed accounts with `admin` and `user` roles; no public registration.
+- Password and OpenID Connect (OIDC) login, revocable sessions and profile management.
+- A REST API for managing monitors, notifiers and accounts.
+- Docker deployment or a standalone Go binary; no separate database server or Node.js runtime required.
 
-- **Tiny Footprint:** ~12 MB binary, < 30 MB RAM at rest.
-- **Near Zero Dependencies:** Single static Go binary with embedded Tailwind CSS frontend. No Docker, no Node.js, no PostgreSQL.
-- **Configuration as Code:** Provision and manage endpoints and notifiers entirely via a YAML configuration file alongside UI-managed items. 
-- **Multiple Monitor Types:** Support for HTTP/HTTPS monitors and raw TCP port connections (with more coming soon).
-- **Efficient Data Layer:** Pure-Go SQLite with WAL mode, chunked pruning, and decoupled asynchronous writers. Every check result is stored locally in a single `.db` file.
-- **High Performance:** An in-memory cache and background aggregation engine guarantee instant dashboard load times, even with years of historical data.
-- **Massive Concurrency:** One lightweight, hardened goroutine per endpoint. Effortlessly monitor 1,000+ endpoints concurrently on a single CPU core.
-- **Uptime History:** 24 hour uptime % and a visual ping hit/miss chart per endpoint. 90 day auto cleanup.
-- **Alert Notifications:** Built-in support for Telegram, Pushover (and more) alerts with per-endpoint linking.
-- **Customizable Thresholds:** Configure exactly how many consecutive failures trigger an alert per endpoint.
-- **Built-in Security:** Secure the dashboard and API instantly with HTTP Basic Auth (`TINYPULSE_PASSWORD`).
-- **REST API:** Fully featured `/api` endpoints for programmatic access and automation.
-
-## Screenshot
-
-![alt text](images/cover.png)
-
-## Quick Start
-
-### Download a release
-
-Grab the latest binary for your platform from the [Releases](https://github.com/AkaCoder404/tinypulse/releases) page.
-
-```bash
-chmod +x tinypulse
-TINYPULSE_PASSWORD=supersecret ./tinypulse
-```
-Then open [http://localhost:8080](http://localhost:8080) and log in with username `admin` and your password.
-
-> Please see the [Deployment and Updates Guide](docs/deployment_and_updates.md) for an example on how to set up TinyPulse on a server. Also contains information how to update from a previous version.
-
-### Build from source
-
-```bash
-git clone https://github.com/AkaCoder404/tinypulse.git
-cd tinypulse
-make build
-./tinypulse
-```
-
-**Requirements:** Go 1.26.2+
+## Quick start
 
 ### Docker Compose
 
-Create a `.env` file in the project directory containing your dashboard password:
-
-```dotenv
-TINYPULSE_PASSWORD=replace-with-a-strong-password
-```
-
-Build and start using the included [compose.yml](compose.yml):
+Clone the repository and start the included [Compose service](compose.yml):
 
 ```bash
+git clone https://github.com/codewec/uptimelit.git
+cd uptimelit
 docker compose up -d --build
 ```
 
-Open [http://localhost:8080](http://localhost:8080) and log in as `admin` with your password.
-The image runs as UID/GID `10001:10001`. The named volume `tinypulse-data` stores
-the SQLite database and its WAL files in `/data`, preserving them when the container
-is recreated. `docker compose down` keeps the data; `docker compose down -v` deletes it.
+Open [http://localhost:8080](http://localhost:8080). On an empty database, sign in with a new username and password to create the first administrator. Passwords must contain 8–72 bytes; usernames accept 1–64 letters, digits, dots, underscores or dashes. If OIDC is configured, the first successful OIDC sign-in can create the administrator instead.
 
-To use declarative configuration, create `config.yml`, add
-`TINYPULSE_CONFIG: /etc/tinypulse/config.yml` to the service's `environment`, and add
-`./config.yml:/etc/tinypulse/config.yml:ro` to its `volumes`. Any environment variables
-referenced by the YAML (such as `TELEGRAM_BOT_TOKEN`) must also be passed through
-the service's `environment`.
+After the first account exists, only an administrator can create additional users through **Users**. Unknown accounts cannot sign in or register.
 
-To build and run without Compose:
+The container runs as UID/GID `10001:10001`. The `uptimelit-data` named volume stores the database and its WAL files in `/data`. Recreating the container preserves these files. `docker compose down` keeps the volume; `docker compose down -v` deletes it.
+
+To update a deployment built from source:
 
 ```bash
-docker build -t tinypulse:local .
-docker run -d --name tinypulse --restart unless-stopped \
-  -p 8080:8080 --env-file .env \
-  -v tinypulse-data:/data tinypulse:local
+git pull
+docker compose up -d --build
 ```
 
-Monitored endpoints on the same Compose network can be reached by service name.
-Inside the container, `localhost` refers to TinyPulse's own container.
+See the [deployment guide](docs/deployment_and_updates.md) for deployment and database backup notes.
 
----
+### Docker image from GHCR
+
+The [GitHub Actions workflow](.github/workflows/docker-dev.yml) builds the Dockerfile and publishes `ghcr.io/codewec/uptimelit:dev` on pushes to `main`. It also supports manual runs for `main`. The `dev` tag floats to the latest published build.
+
+To run the published image:
+
+```bash
+docker pull ghcr.io/codewec/uptimelit:dev
+docker run -d --name uptimelit --restart unless-stopped \
+  -p 8080:8080 \
+  -v uptimelit-data:/data \
+  ghcr.io/codewec/uptimelit:dev
+```
+
+To use a published image with Compose, replace `build: .` and `image: uptimelit:local` in `compose.yml` with `image: ghcr.io/codewec/uptimelit:dev`. Then update with:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Monitors can reach other services on the same Docker network by service name. Inside the container, `localhost` refers to the UptimeLit container itself.
+
+### Build from source
+
+Requires Go 1.26.2 or later. From the project directory:
+
+```bash
+make build
+./uptimelit
+```
+
+The binary listens on `:8080` and stores its database at `./uptimelit.db` by default.
+
+## Users and sessions
+
+Administrators can create users, change names and roles, reset passwords and OIDC bindings, and delete accounts together with their monitors, history and notifiers. Administrator privileges do not grant access to another user's monitoring data. The last administrator cannot be demoted or deleted, and users cannot delete their own accounts.
+
+**Profile** lets a user change their username or password. Changing a password requires the current password when one exists. An OIDC-only user can set their first password from an OIDC session if password login is enabled. Usernames cannot be changed during an OIDC session.
+
+Sessions last seven days. Signing out revokes the current session. Profile changes, administrative account updates and initial OIDC account linking revoke the affected user's existing sessions. Deleting a user revokes their sessions and stops their monitors.
 
 ## Configuration
 
-TinyPulse can be configured via flags or environment variables.
+Monitor and notifier settings live in the database and are managed through the UI or API. Server settings come from environment variables; `-addr` and `-db` override their corresponding environment values.
 
-| Flag             | Env Var              | Default          | Description                                     |
-| ---------------- | -------------------- | ---------------- | ----------------------------------------------- |
-| `-addr`          | `TINYPULSE_ADDR`     | `:8080`          | HTTP listen address                             |
-| `-db`            | `TINYPULSE_DB`       | `./tinypulse.db` | SQLite database path                            |
-| `-password`      | `TINYPULSE_PASSWORD` | *(empty)*        | Enables Basic Auth (Username is always `admin`) |
-| `-config`        | `TINYPULSE_CONFIG`   | *(empty)*        | Path to a YAML configuration file               |
-| `-dry-run`       | *(none)*             | `false`          | Parse config, preview DB changes, and exit      |
-| `-eject-config`  | *(none)*             | `false`          | Unlock config-managed items back to UI control  |
-| `-export-config` | *(none)*             | *(empty)*        | Export current database to a YAML config file   |
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| `UPTIMELIT_ADDR` | `:8080` | HTTP listen address; also settable with `-addr` |
+| `UPTIMELIT_DB` | `./uptimelit.db` | SQLite path; also settable with `-db`. Docker defaults to `/data/uptimelit.db` |
+| `JWT_SECRET` | Generated and stored in the database | Optional session signing key, at least 32 bytes |
+| `OIDC_ISSUER` | Empty | OIDC provider issuer URL |
+| `OIDC_CLIENT_ID` | Empty | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | Empty | OIDC client secret |
+| `OIDC_REDIRECT_URL` | Empty | Required absolute callback URL when OIDC is enabled |
+| `OIDC_BUTTON_TITLE` | `Sign in with OIDC` | OIDC login button label |
+| `DISABLE_PASSWORD_LOGIN` | `false` | Disable password login when OIDC is configured |
+| `OIDC_INSECURE_SKIP_TLS_VERIFY` | `false` | Disable TLS certificate verification for OIDC requests only |
 
-### Configuration as Code (YAML)
+The binary does not automatically load `.env` files. The included Compose file passes its listed authentication settings from the shell or a project `.env` file into the container. For `docker run`, use `-e` or `--env-file` to pass settings.
 
-TinyPulse supports declarative provisioning via a YAML configuration file. This allows you to manage your endpoints and notifiers using GitOps or CI/CD pipelines alongside your existing UI-created items. 
+### OIDC
 
-When you define an item in the YAML file:
-1. It is automatically created or updated in the database on startup.
-2. It becomes **Read-Only** in the web dashboard (a purple `Config` badge will appear).
-3. If you remove it from the YAML file, it is safely deleted from the database on the next startup.
+Register an OIDC client with your provider and set its callback to:
 
-*Any items you create manually through the web UI are completely safe and will not be touched by the YAML sync.*
-
-#### Usage
-
-Create a `config.yml` (see [example_config.yml](example_config.yml) for a full example):
-
-```yaml
-endpoints:
-  my_website:
-    name: "My Website"
-    type: "http"
-    url: "https://example.com"
-    interval_seconds: 60
-    notifiers:
-      - telegram_ops
-
-notifiers:
-  telegram_ops:
-    name: "Ops Team Telegram"
-    type: "telegram"
-    config:
-      bot_token: "${TELEGRAM_BOT_TOKEN}" # Supports environment variables!
-      chat_id: "-1001234567890"
+```text
+https://monitor.example.com/api/auth/oidc/callback
 ```
 
-Start TinyPulse with the config flag:
-```bash
-TELEGRAM_BOT_TOKEN="123:abc" ./tinypulse -config config.yml
+For the included Compose service, create a `.env` file alongside `compose.yml`:
+
+```dotenv
+OIDC_ISSUER=https://id.example.com
+OIDC_CLIENT_ID=uptimelit
+OIDC_CLIENT_SECRET=provider-issued-secret
+OIDC_REDIRECT_URL=https://monitor.example.com/api/auth/oidc/callback
+OIDC_BUTTON_TITLE=Sign in with Pocket ID
 ```
 
-#### Dry Run
+Recreate the container with `docker compose up -d`. The issuer and client ID must both be supplied, and the callback must match the provider configuration. UptimeLit uses authorization code flow with PKCE, state and nonce validation, and verifies the ID token's signature, issuer, audience and expiry.
 
-You can safely preview what changes the YAML file will apply to your database without actually writing anything to the disk. This is perfect for CI/CD validation.
+An existing OIDC binding is identified by issuer and subject. For an unbound identity, UptimeLit links to an administrator-created account with the same normalized username, preserving its password and role. The username comes from `preferred_username`, then the email local part, then display name; unsupported characters are replaced by dashes. Use a trusted provider whose usernames you control.
 
-```bash
-./tinypulse -config config.yml -dry-run
-```
+After bootstrap, unknown identities are denied: OIDC does not enable public registration. Administrators can create accounts without passwords when OIDC is configured, then users can sign in through the matching provider identity.
 
-#### Exporting Configuration
+Password login remains available by default. Set `DISABLE_PASSWORD_LOGIN=true` after verifying OIDC if you want OIDC-only login. Without configured OIDC, password login remains enabled.
 
-If you have already set up monitors and notifiers using the Web UI and want to transition to a Configuration-as-Code workflow, you can export your current database state to a YAML file:
+For HTTPS behind a reverse proxy, forward the original host and `X-Forwarded-Proto` header. Prefer a trusted CA for private providers. `OIDC_INSECURE_SKIP_TLS_VERIFY=true` explicitly bypasses certificate verification for OIDC discovery, token exchange and key retrieval, and emits a warning at startup.
 
-```bash
-./tinypulse -export-config my_new_config.yml
-```
+## Monitoring and notifications
 
-This will generate a ready-to-use YAML file containing all your existing endpoints and notifiers. You can then use this file to start TinyPulse in the future.
+HTTP checks try `HEAD` first and retry with `GET` if the server returns `405 Method Not Allowed`. Status codes `200`–`399` count as UP; redirects are not followed. The HTTP client timeout is 10 seconds. TCP checks attempt to open a connection to the configured `host:port`.
 
-#### Ejecting Configuration
-
-If you start the server *without* a `-config` flag, but the database still contains items created by a previous config file, those items will remain running but will be locked in the UI (to prevent accidental data loss).
-
-If you want to permanently stop using the YAML file and manage those specific items via the Web UI again, run the eject command:
-
-```bash
-./tinypulse -eject-config
-```
-This safely transitions all config-managed items back to UI control without losing their uptime history.
-
----
-
-## Notifications
-
-TinyPulse supports multiple notification channels to alert you when an endpoint goes down or recovers. You can configure these in the UI and link them to specific endpoints. Currently supported: *Telegram, Pushover, Redis*
-
-*More notification providers (Slack, Discord, Webhooks) will be added in future releases.*
+In the UI, create notification channels in **Notifiers**, then select them when creating or editing a monitor. Supported channels are Telegram, Pushover and Redis. A monitor can only use its owner's notifiers. The failure threshold controls how many consecutive failed checks trigger an outage notification; recovery notifications are sent when the service comes back up.
 
 ## REST API
 
-TinyPulse includes a full JSON REST API, which powers the dashboard and can be used for automation. If you set a `TINYPULSE_PASSWORD`, you must provide it via HTTP Basic Auth (Username: `admin`).
+All monitoring, notifier and user-management routes require authentication. Sign in with a password:
 
-**Endpoints (`/api/endpoints`)**
-- `GET /api/endpoints` - List all endpoints with their current 30-day uptime statistics.
-- `POST /api/endpoints` - Create a new endpoint.
-- `GET /api/endpoints/{id}` - Get a specific endpoint.
-- `PUT /api/endpoints/{id}` - Update a specific endpoint.
-- `DELETE /api/endpoints/{id}` - Delete an endpoint and all its history.
-- `POST /api/endpoints/{id}/pause` - Toggle pause/resume for monitoring.
-- `GET /api/endpoints/{id}/history?limit=60` - Get lightweight, recent ping data for the visual timeline.
-- `GET /api/endpoints/{id}/checks?limit=100` - Get full raw check history (status codes, response times).
+```bash
+curl -H 'Content-Type: application/json' -H 'X-UptimeLit-Request: 1' \
+  -d '{"username":"alice","password":"your-password"}' \
+  http://localhost:8080/api/auth/login
+```
 
-**Notifiers (`/api/notifiers`)**
-- `GET /api/notifiers` - List all notifiers.
-- `POST /api/notifiers` - Create a new notifier.
-- `GET /api/notifiers/{id}` - Get a specific notifier.
-- `PUT /api/notifiers/{id}` - Update a specific notifier.
-- `DELETE /api/notifiers/{id}` - Delete a notifier.
-- `POST /api/notifiers/{id}/test` - Trigger a test alert to verify credentials.
+The response contains `token` and `user`. Pass the token as `Authorization: Bearer <token>` for subsequent requests. The browser uses an HttpOnly session cookie. All writes without a Bearer token, including login, require `X-UptimeLit-Request: 1` for CSRF protection.
 
----
+### Authentication and accounts
 
-## Performance
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/auth/config` | Public login-method and bootstrap configuration |
+| POST | `/api/auth/login` | Password sign-in; creates the first administrator on an empty database |
+| POST | `/api/auth/logout` | Revoke the current session |
+| GET | `/api/auth/me` | Current user |
+| PUT | `/api/auth/profile` | Update `username`, optionally `newPassword` and `currentPassword` |
+| GET | `/api/auth/oidc/login` | Start OIDC login |
+| GET | `/api/auth/oidc/callback` | OIDC provider callback |
+| GET / POST | `/api/admin/users` | List or create users; administrators only |
+| PUT / DELETE | `/api/admin/users/{id}` | Update or delete users; administrators only |
 
-> TODO: Requires more comprehensive testing in different environment.
+User creation accepts `username`, `role` (`admin` or `user`, default `user`) and `password` (optional with OIDC). Updates accept `username`, `role`, optional `newPassword` and `resetOIDC`. Resetting an OIDC binding requires an available password login method.
 
-You can take a look at the ![performance](docs/performance.md) docs for some testing.
+### Monitors and notifiers
 
-## Contributing
+Every resource route is scoped to the signed-in user. Accessing another user's resource returns `404`, including for administrators.
 
-Contributions are welcome! Please open an issue or pull request. Feel free to request features as well.
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET / POST | `/api/endpoints` | List own monitors with current statistics, or create a monitor |
+| GET / PUT / DELETE | `/api/endpoints/{id}` | Read, update or delete a monitor and its history |
+| POST | `/api/endpoints/{id}/pause` | Toggle monitoring pause |
+| GET | `/api/endpoints/{id}/history?limit=60` | Recent history for the timeline |
+| GET | `/api/endpoints/{id}/checks?limit=100` | Check details with status codes and response times |
+| GET / POST | `/api/notifiers` | List own notifiers or create a notifier |
+| GET / PUT / DELETE | `/api/notifiers/{id}` | Read, update or delete a notifier |
+| POST | `/api/notifiers/{id}/test` | Send a test notification |
+| GET | `/api/status` | Application version |
+
+## Development
+
+```bash
+make test
+go test -race ./...
+go vet ./...
+```
+
+Database migrations live in [internal/db/migrations](internal/db/migrations/README.md) as timestamped Go files with apply and rollback functions. Startup applies pending migrations automatically, committing each schema change and its `schema_migrations` entry together. Back up the database before deploying schema changes.
+
+Contributions are welcome through issues and pull requests.
 
 ## Acknowledgements
 
-Heavily expired by Uptime-Kuma!
+UptimeLit builds on the original [TinyPulse project](https://github.com/AkaCoder404/tinypulse). Thanks to its author and contributors for the foundation.
 
 ## License
 
-MIT
+[MIT](LICENSE). The original copyright notice is retained in the license file.
