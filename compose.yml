@@ -1,0 +1,18 @@
+services:
+  tinypulse:
+    build: .
+    image: tinypulse:local
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TINYPULSE_PASSWORD: ${TINYPULSE_PASSWORD:?Set TINYPULSE_PASSWORD in .env or your shell}
+      TINYPULSE_DB: /data/tinypulse.db
+    volumes:
+      - tinypulse-data:/data
+    # Optional declarative configuration:
+    # environment: add TINYPULSE_CONFIG: /etc/tinypulse/config.yml above
+    # volumes: add ./config.yml:/etc/tinypulse/config.yml:ro above
+
+volumes:
+  tinypulse-data:

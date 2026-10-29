@@ -53,7 +53,44 @@ make build
 ./tinypulse
 ```
 
-**Requirements:** Go 1.21+
+**Requirements:** Go 1.26.2+
+
+### Docker Compose
+
+Create a `.env` file in the project directory containing your dashboard password:
+
+```dotenv
+TINYPULSE_PASSWORD=replace-with-a-strong-password
+```
+
+Build and start using the included [compose.yml](compose.yml):
+
+```bash
+docker compose up -d --build
+```
+
+Open [http://localhost:8080](http://localhost:8080) and log in as `admin` with your password.
+The image runs as UID/GID `10001:10001`. The named volume `tinypulse-data` stores
+the SQLite database and its WAL files in `/data`, preserving them when the container
+is recreated. `docker compose down` keeps the data; `docker compose down -v` deletes it.
+
+To use declarative configuration, create `config.yml`, add
+`TINYPULSE_CONFIG: /etc/tinypulse/config.yml` to the service's `environment`, and add
+`./config.yml:/etc/tinypulse/config.yml:ro` to its `volumes`. Any environment variables
+referenced by the YAML (such as `TELEGRAM_BOT_TOKEN`) must also be passed through
+the service's `environment`.
+
+To build and run without Compose:
+
+```bash
+docker build -t tinypulse:local .
+docker run -d --name tinypulse --restart unless-stopped \
+  -p 8080:8080 --env-file .env \
+  -v tinypulse-data:/data tinypulse:local
+```
+
+Monitored endpoints on the same Compose network can be reached by service name.
+Inside the container, `localhost` refers to TinyPulse's own container.
 
 ---
 
