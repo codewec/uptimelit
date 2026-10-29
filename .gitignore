@@ -34,3 +34,14 @@ coverage.html
 # Local environment files
 .env
 .env.local
+
+# Frontend and embedded build output
+/app
+/frontend/node_modules/
+/frontend/dist/
+/backend/cmd/server/static/*
+!/backend/cmd/server/static/.gitkeep
+/data/
+
+/frontend/test-results/
+/frontend/playwright-report/

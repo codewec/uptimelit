@@ -1,39 +1,10 @@
-# Deploying and Updating UptimeLit
+# Deployment and updates
 
-## Deployment with Docker Compose
+The deployment documentation is organized into focused guides:
 
-From the project directory, build and start the included Compose service:
+- [Installation and updates](guide/installation.md): GHCR, Docker Compose, source builds and persistent storage.
+- [Configuration](guide/configuration.md): environment variables, CLI flags and reverse proxies.
+- [Backups and restore](guide/backups.md): consistent SQLite backups, Docker volumes and schema changes.
+- [OIDC authentication](guide/oidc.md): provider setup, account linking and login policy.
 
-```bash
-docker compose up -d --build
-```
-
-Open `http://localhost:8080`. The first sign-in creates the administrator.
-Configure OIDC through the Compose environment if needed; see the
-[authentication settings](../README.md#authentication-and-configuration).
-
-The `uptimelit-data` named volume stores the database in `/data/uptimelit.db`.
-It survives container recreation. `docker compose down` preserves the volume;
-`docker compose down -v` deletes it.
-
-For HTTPS, place a reverse proxy in front of port 8080 and forward the original
-host and `X-Forwarded-Proto` header.
-
-## Updating
-
-Back up the database volume with the service stopped before deploying schema
-changes. Then obtain the updated source and rebuild the container:
-
-```bash
-git pull
-docker compose up -d --build
-docker compose logs --tail=100 uptimelit
-```
-
-## Database migrations
-
-Versioned migrations run automatically at startup. Each migration and its entry
-in `schema_migrations` commit in one transaction. A failed migration is rolled
-back and startup stops with an error.
-
-For adding migrations, see [the migration guide](../internal/db/migrations/README.md).
+Start at the [documentation index](index.md) for all guides, including monitoring, users, notifications and API usage.
