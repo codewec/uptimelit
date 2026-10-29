@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import type { Monitor } from '../src/lib/api'
 const credentials = { username: 'e2e-admin', password: 'test-admin-password' }
 async function login(page: Page, username = credentials.username, password = credentials.password) {
   await page.goto('/login')
@@ -58,6 +59,24 @@ test('bootstrap, monitor and notifier CRUD, user isolation and profile sessions'
   await expect(dialog).toBeHidden()
   await expect(page.getByText('1 notifier', { exact: true })).toBeVisible()
   await expect(page.locator('section').getByText('Up', { exact: true })).toBeVisible({ timeout: 15000 })
+  // Check details use a tooltip without opening the full history dialog.
+  const timeline = page.getByRole('group', { name: 'Check history for Production API', exact: true })
+  const latestBar = timeline.locator('[data-check-key]').last()
+  await latestBar.hover()
+  const tooltip = page.getByRole('tooltip')
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip.getByText('HTTP status', { exact: true })).toBeVisible()
+  await expect(tooltip.getByText('200', { exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(tooltip).toBeHidden()
+  await page.mouse.move(0, 0)
+  await latestBar.focus()
+  await expect(tooltip).toBeVisible()
+  await expect(latestBar).toHaveAttribute('aria-describedby', (await tooltip.getAttribute('id')) as string)
+  await page.keyboard.press('Tab')
+  await expect(timeline.getByRole('button', { name: 'View history for Production API' })).toBeFocused()
+  await expect(tooltip).toBeHidden()
   await page.screenshot({ path: 'test-results/desktop-monitors.png', fullPage: true })
   // Edit, search, pause and inspect history.
   await page.getByRole('button', { name: 'Actions for Production API' }).click()
@@ -92,7 +111,7 @@ test('bootstrap, monitor and notifier CRUD, user isolation and profile sessions'
   await page.getByRole('button', { name: 'View history for Core API' }).click()
   dialog = page.getByRole('dialog', { name: 'Core API', exact: true })
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByRole('cell', { name: '200', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('cell', { name: '200', exact: true }).first()).toBeVisible()
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   // Provision an ordinary user from the administrative page.
   await page.goto('/admin')
@@ -156,4 +175,233 @@ test('mobile navigation, dialogs and responsive layout', async ({ page }) => {
   await expect(dialog).toBeHidden()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   await page.screenshot({ path: 'test-results/mobile-notifiers.png', fullPage: true })
+})
+
+test('timeline has continuous hit areas and one shared tooltip during fast pointer movement', async ({ page }) => {
+  await ensureAdmin(page)
+  const checks = Array.from({ length: 50 }, (_, index) => ({
+    checked_at: new Date(Date.UTC(2026, 9, 29, 12, index)).toISOString(),
+    is_up: index % 2 === 0,
+    status_code: index % 2 === 0 ? 200 : 503,
+    response_time_ms: index,
+  }))
+  const monitor: Monitor = {
+    id: 42,
+    owner_id: 'fixture',
+    name: 'Timeline test',
+    type: 'http',
+    url: 'https://example.com',
+    interval_seconds: 60,
+    fail_threshold: 3,
+    paused: false,
+    created_at: checks[0].checked_at,
+    notifier_ids: [],
+    status_code: 503,
+    response_time_ms: 49,
+    is_up: false,
+    checked_at: checks[49].checked_at,
+    uptime_24h: 50,
+    recent_checks: checks,
+  }
+  await page.route('**/api/endpoints', (route) => route.fulfill({ json: [monitor] }))
+  await login(page)
+  const timeline = page.getByRole('group', { name: 'Check history for Timeline test', exact: true })
+  const bars = timeline.locator('[data-check-key]')
+  await expect(bars).toHaveCount(50)
+  const openBars = timeline.locator('[data-check-key]:not([data-state="closed"])')
+  const tooltip = page.getByRole('tooltip')
+  await bars.first().hover()
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip).toHaveCSS('animation-name', /history-tooltip-in/)
+  const tooltipID = await tooltip.getAttribute('id')
+  // Cross former gaps and jump between non-neighbouring bars without hover delays.
+  for (const index of [1, 32, 4, 49, 0, 25]) {
+    const bar = bars.nth(index)
+    const bounds = (await bar.boundingBox())!
+    // Both padding edges must belong to this bar, not the row or its neighbours.
+    for (const x of [bounds.x + 0.2, bounds.x + bounds.width - 0.2]) {
+      await page.mouse.move(x, bounds.y + bounds.height / 2)
+      await expect(openBars).toHaveCount(1)
+      await expect(openBars).toHaveAttribute('data-check-key', checks[index].checked_at)
+      await expect(tooltip.locator('time')).toHaveAttribute('datetime', checks[index].checked_at)
+      await expect(tooltip).toHaveAttribute('id', tooltipID!)
+      await expect(tooltip).toHaveCSS('animation-name', 'none')
+      // Only the bar associated with the tooltip may be enlarged.
+      await expect
+        .poll(() => bars.locator('span').evaluateAll((spans) => spans.filter((span) => getComputedStyle(span).transform !== 'none').length))
+        .toBe(1)
+    }
+  }
+  await page.screenshot({ path: 'test-results/timeline-tooltip.png' })
+  await tooltip.evaluate((element) => {
+    element.addEventListener('animationstart', (event) => {
+      document.documentElement.dataset.tooltipAnimation = (event as AnimationEvent).animationName
+    })
+  })
+  await page.mouse.move(0, 0)
+  await expect(tooltip).toBeHidden()
+  await expect(page.locator('html')).toHaveAttribute('data-tooltip-animation', /history-tooltip-out/)
+  await expect(openBars).toHaveCount(0)
+  await bars.last().focus()
+  await expect(tooltip).toBeVisible()
+  await page.keyboard.press('Home')
+  await expect(bars.first()).toBeFocused()
+  await expect(openBars).toHaveCount(1)
+  await expect(tooltip.locator('time')).toHaveAttribute('datetime', checks[0].checked_at)
+  await expect(tooltip.getByText('0 ms', { exact: true })).toBeVisible()
+  await page.keyboard.press('End')
+  await expect(bars.last()).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(tooltip).toBeHidden()
+  await expect(openBars).toHaveCount(0)
+  // Arrow polygons use currentColor, so their text color must match the surface.
+  for (const themeName of ['Crema', 'Mocha']) {
+    await page.getByRole('button', { name: 'Choose theme' }).click()
+    await page.getByRole('menuitem', { name: themeName, exact: true }).click()
+    await bars.first().hover()
+    await expect(tooltip).toBeVisible()
+    const colors = await tooltip.evaluate((element) => ({
+      background: getComputedStyle(element).backgroundColor,
+      arrow: getComputedStyle(element.querySelector('polygon')!).fill,
+    }))
+    expect(colors.arrow).toBe(colors.background)
+    await page.mouse.move(0, 0)
+    await expect(tooltip).toBeHidden()
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await bars.first().focus()
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip).toHaveCSS('animation-name', 'none')
+})
+
+test('Bits UI v2 menus and dialogs retain keyboard navigation, focus and dismissal', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await ensureAdmin(page)
+  await page.context().clearCookies()
+  await page.goto('/login')
+  // The floating theme menu is also used before signing in.
+  const themeButton = page.getByRole('button', { name: 'Choose theme' })
+  await themeButton.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('menu')).toBeVisible()
+  await page.keyboard.press('End')
+  await expect(page.getByRole('menuitem', { name: 'Edit colors…', exact: true })).toBeFocused()
+  await page.keyboard.press('Enter')
+  const customTheme = page.getByRole('dialog', { name: 'Custom theme', exact: true })
+  await expect(customTheme).toBeVisible()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(customTheme.getByLabel('Color scheme')).toBeFocused()
+  await customTheme.getByLabel('Color scheme').selectOption('light')
+  await page.keyboard.press('Escape')
+  await expect(customTheme).toBeHidden()
+  await expect(themeButton).toBeFocused()
+
+  await login(page)
+  const newMonitor = page.getByRole('button', { name: 'New monitor', exact: true })
+  await newMonitor.click()
+  const monitorDialog = page.getByRole('dialog', { name: 'New monitor', exact: true })
+  await expect(monitorDialog.getByLabel('Name', { exact: true })).toBeFocused()
+  await expect(monitorDialog).toHaveAccessibleDescription('Keep an eye on a website, API or TCP service.')
+  await page.keyboard.press('Shift+Tab')
+  await expect(monitorDialog.getByRole('button', { name: 'Create monitor', exact: true })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(monitorDialog.getByLabel('Name', { exact: true })).toBeFocused()
+  await monitorDialog.getByLabel('Monitor type').selectOption('tcp')
+  await expect(monitorDialog.getByLabel('Monitor type')).toHaveValue('tcp')
+  await page.keyboard.press('Escape')
+  await expect(monitorDialog).toBeHidden()
+  await expect(newMonitor).toBeFocused()
+  // Pointer dismissal still works and scroll locking is released.
+  await newMonitor.click()
+  await expect(monitorDialog).toBeVisible()
+  await page.mouse.click(1, 1)
+  await expect(monitorDialog).toBeHidden()
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).overflow)).not.toBe('hidden')
+
+  await page.goto('/notifiers')
+  const newNotifier = page.getByRole('button', { name: 'New notifier', exact: true })
+  await newNotifier.click()
+  const notifierDialog = page.getByRole('dialog', { name: 'New notifier', exact: true })
+  await notifierDialog.getByLabel('Provider').selectOption('pushover')
+  await expect(notifierDialog.getByLabel('Priority')).toBeVisible()
+  await notifierDialog.getByLabel('Priority').selectOption('1')
+  await notifierDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(notifierDialog).toBeHidden()
+  await expect(newNotifier).toBeFocused()
+
+  await page.goto('/admin')
+  await page.getByRole('button', { name: 'Create user', exact: true }).click()
+  const userDialog = page.getByRole('dialog', { name: 'Create user', exact: true })
+  await expect(userDialog).toBeVisible()
+  await userDialog.getByRole('combobox', { name: 'Role', exact: true }).selectOption('admin')
+  await expect(userDialog.getByRole('combobox', { name: 'Role', exact: true })).toHaveValue('admin')
+  await page.keyboard.press('Escape')
+  await expect(userDialog).toBeHidden()
+
+  // The mobile menu uses the same theme items and opens the shared dialog.
+  await page.setViewportSize({ width: 390, height: 844 })
+  const mobileMenu = page.getByRole('button', { name: 'Menu', exact: true })
+  await mobileMenu.click()
+  await page.getByRole('menuitem', { name: 'Edit colors…', exact: true }).click()
+  await expect(customTheme).toBeVisible()
+  await expect(customTheme.getByLabel('Color scheme')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(customTheme).toBeHidden()
+  await expect(mobileMenu).toBeFocused()
+  expect(errors).toEqual([])
+})
+
+test('Bits UI v2 alert dialog stays open on failed asynchronous confirmation', async ({ page }) => {
+  await ensureAdmin(page)
+  await login(page)
+  const response = await page.request.post('/api/notifiers', {
+    headers: { 'X-UptimeLit-Request': '1' },
+    data: { name: 'Confirmation test', type: 'telegram', config_json: JSON.stringify({ bot_token: 'test', chat_id: 'test' }) },
+  })
+  expect(response.ok()).toBeTruthy()
+  const notifier = await response.json()
+  try {
+    await page.goto('/notifiers')
+    await page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Confirmation test', exact: true }) })
+      .getByRole('button', { name: 'Delete', exact: true })
+      .click()
+    const confirmation = page.getByRole('alertdialog', { name: 'Delete notifier', exact: true })
+    await expect(confirmation).toBeVisible()
+    await expect(confirmation).toBeFocused()
+    await page.mouse.click(1, 1)
+    await expect(confirmation).toBeVisible()
+    await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(confirmation).toBeHidden()
+    await page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Confirmation test', exact: true }) })
+      .getByRole('button', { name: 'Delete', exact: true })
+      .click()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route(`**/api/notifiers/${notifier.id}`, async (route) => {
+      await gate
+      await route.fulfill({ status: 500, json: { error: 'Confirmation test failure' } })
+    })
+    await confirmation.getByRole('button', { name: 'Delete', exact: true }).click()
+    try {
+      await expect(confirmation).toBeVisible()
+      await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled()
+      await expect(confirmation.getByRole('button').last()).toBeDisabled()
+    } finally {
+      release()
+    }
+    await expect(page.getByText('Confirmation test failure', { exact: true })).toBeVisible()
+    await expect(confirmation).toBeVisible()
+    await expect(confirmation.getByRole('button', { name: 'Delete', exact: true })).toBeEnabled()
+    await page.keyboard.press('Escape')
+    await expect(confirmation).toBeHidden()
+  } finally {
+    await page.request.delete(`/api/notifiers/${notifier.id}`, { headers: { 'X-UptimeLit-Request': '1' } })
+  }
 })

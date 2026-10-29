@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-alpine AS frontend
+FROM node:26.13.0-alpine3.24 AS frontend
 WORKDIR /src/frontend
-RUN corepack enable && corepack prepare pnpm@10.15.0 --activate
+RUN npm install --global pnpm@12.16.1
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=uptimelit-pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN pnpm run build
 
-FROM golang:1.26.2-alpine AS backend
+FROM golang:1.27.3-alpine3.24 AS backend
 WORKDIR /src/backend
 COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -16,7 +16,7 @@ COPY backend/ ./
 COPY --from=frontend /src/frontend/dist/ ./cmd/server/static/
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/uptimelit ./cmd/server
 
-FROM alpine:3.23 AS runtime
+FROM alpine:3.24.3 AS runtime
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 uptimelit \
     && adduser -S -D -H -u 10001 -G uptimelit uptimelit \

@@ -29,9 +29,9 @@ Choose a check interval of at least 10 seconds. The form defaults to 60 seconds 
 
 A card shows its name/address, current state, check type/interval, recent check bars, 24-hour uptime, last response time, HTTP status when applicable and the number of linked notifiers. The monitor list refreshes approximately every five seconds while the tab is visible. The 24-hour aggregate is refreshed separately in the background.
 
-Green bars indicate successful checks; red bars indicate failures. Empty bars mean no recorded result for those positions. Paused monitors use muted bars. Hover a recorded bar for its timestamp, status and response time.
+Green bars indicate successful checks; red bars indicate failures. Empty bars mean no recorded result for those positions. Paused monitors use muted bars. Hover a recorded bar to enlarge it with a short animation and show a tooltip with its timestamp, status, protocol, HTTP code where applicable and response time. The timeline uses one shared tooltip that follows the active check. Hover areas meet without gaps, and only the check shown in the tooltip is enlarged. You can move the pointer into the tooltip to read it. Keyboard focus also opens the tooltip; arrow keys and Home/End move between checks, and Escape dismisses it. On touch screens, use **View history** to see check details. Reduced-motion preferences disable the animation.
 
-Click the history bars or choose **History** from the actions menu to inspect the most recent 100 checks. The dashboard shows up to 50 recent check bars. Check history is retained for 90 days with periodic cleanup.
+Click **View history** below the bars or choose **History** from the actions menu to inspect the most recent 100 checks. The dashboard shows up to 50 recent check bars. Check history is retained for 90 days with periodic cleanup.
 
 Choose **Edit** to change the monitor's name, type, target, interval, threshold or attached notifiers. **Pause** stops its worker; **Resume** starts it again. **Delete** removes the monitor and its history after confirmation.
 

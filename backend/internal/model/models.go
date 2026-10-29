@@ -28,7 +28,7 @@ type MinimalCheck struct {
 	IsUp           bool      `json:"is_up"`
 	CheckedAt      time.Time `json:"checked_at"`
 	StatusCode     *int      `json:"status_code,omitempty"`
-	ResponseTimeMs int       `json:"response_time_ms,omitempty"`
+	ResponseTimeMs int       `json:"response_time_ms"`
 }
 
 type EndpointWithStats struct {

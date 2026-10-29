@@ -77,12 +77,13 @@
         color}><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{state}</span
     ><span class="text-[10px] uppercase tracking-wider text-text-subtle">{monitor.type} · {monitor.interval_seconds}s</span>
   </div>
-  <button
-    type="button"
-    onclick={onHistory}
-    class="block w-full rounded outline-none focus-visible:ring-2 focus-visible:ring-primary"
-    aria-label={'View history for ' + monitor.name}><HistoryBars checks={monitor.recent_checks ?? []} paused={monitor.paused} /></button
-  >
+  <HistoryBars
+    checks={monitor.recent_checks ?? []}
+    paused={monitor.paused}
+    monitorName={monitor.name}
+    protocol={monitor.type}
+    {onHistory}
+  />
   <div class="mt-3 grid grid-cols-3 divide-x divide-border-soft text-center">
     <div>
       <p class="text-[10px] text-text-subtle">Uptime · 24h</p>

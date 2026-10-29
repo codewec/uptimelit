@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/codewec/uptimelit/actions/workflows/docker-dev.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/codewec/uptimelit/docker-dev.yml?branch=main&label=build"></a>
   <a href="docs/index.md"><img alt="Documentation" src="https://img.shields.io/badge/docs-read-brightgreen?logo=readthedocs"></a>
-  <a href="backend/go.mod"><img alt="Go version" src="https://img.shields.io/badge/go-1.26.2%2B-00ADD8?logo=go&logoColor=white"></a>
+  <a href="backend/go.mod"><img alt="Go version" src="https://img.shields.io/badge/go-1.27.3%2B-00ADD8?logo=go&logoColor=white"></a>
   <a href="docs/guide/usage.md#themes"><img alt="Themes" src="https://img.shields.io/badge/themes-light%20%2F%20dark-cba6f7"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/codewec/uptimelit"></a>
 </p>
@@ -91,7 +91,7 @@ For OIDC behind a reverse proxy, use the external callback, for example `https:/
 
 ## Development
 
-Requirements: Go 1.26.2+, Node.js 22+ and pnpm 10.15.0.
+Requirements: Go 1.27.3+, Node.js 26.13+ and pnpm 12.16.1.
 
 ```bash
 cd frontend

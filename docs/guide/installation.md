@@ -69,7 +69,7 @@ For a standalone Docker container, pull the new image, stop and remove the old c
 
 ## Build a standalone binary
 
-Requires Go 1.26.2+, Node.js 22+ and pnpm 10.15.0:
+Requires Go 1.27.3+, Node.js 26.13+ and pnpm 12.16.1:
 
 ```bash
 make build

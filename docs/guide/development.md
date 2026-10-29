@@ -2,7 +2,7 @@
 
 ## Requirements and structure
 
-Use Go 1.26.2+, Node.js 22+ and pnpm 10.15.0. The root is an orchestration directory; the Go module and frontend package are separate:
+Use Go 1.27.3+, Node.js 26.13+ and pnpm 12.16.1. The root is an orchestration directory; the Go module and frontend package are separate:
 
 ```text
 backend/
@@ -23,7 +23,7 @@ frontend/
   tests/               # Browser workflows and isolated test server
 ```
 
-The frontend uses Svelte 5, TypeScript, Vite, Tailwind CSS 4 and Bits UI. Its palettes, Inter fonts, cards, menus and dialogs follow DashLit's visual system. Fonts and styles are bundled locally. See [frontend attribution](../../frontend/THIRD_PARTY.md).
+The frontend uses Svelte 5, TypeScript, Vite, Tailwind CSS 4 and Bits UI. Its palettes, Inter fonts, cards, menus and dialogs follow DashLit's visual system. Fonts and styles are bundled locally. Bits UI 2 requires Svelte 5.33 or newer and an explicit `@internationalized/date` peer dependency. TypeScript stays on the latest 6.x release supported by the standard `svelte-check` API; TypeScript 7 currently needs a second compiler installation and a separate checking mode. See [frontend attribution](../../frontend/THIRD_PARTY.md).
 
 ## Separate development servers
 
