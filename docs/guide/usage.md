@@ -23,7 +23,7 @@ HTTP checks try `HEAD` first. A `405 Method Not Allowed` response causes a retry
 
 TCP monitors attempt to open a connection to `host:port`; a successful connection counts as UP. They do not send application-level health queries, and their cards have no HTTP status code.
 
-Choose a check interval of at least 10 seconds. The form defaults to 60 seconds and a failure threshold of three. The threshold controls outage alerts; it does not delay the displayed status change. Workers stagger startup briefly and their first result establishes an alert baseline. Recovery alerts are sent on a later transition from down to up.
+Choose a check interval of at least 10 seconds. The form defaults to 60 seconds and a failure threshold of three. The threshold controls outage alerts; it does not delay the displayed status change. Workers stagger startup briefly. An outage alert is sent once when consecutive failures reach the threshold, including failures from startup. A recovery alert is sent only after an outage alert was triggered; brief failures below the threshold produce neither notification.
 
 ## Cards and history
 

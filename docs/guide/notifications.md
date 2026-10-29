@@ -26,6 +26,8 @@ Redis stores alert data in keys under the prefix (default `uptimelit`). For endp
 
 ## Alert behavior
 
-Outage notifications depend on the monitor's failure threshold. Recovery notifications follow a down-to-up transition. The first check after a worker starts establishes its baseline; a failed test/check or an empty channel list can explain why a notification was not delivered.
+An outage notification is triggered once when consecutive failures reach the monitor's threshold. Further failures in the same outage do not send duplicates. Recovery is triggered only after that outage notification; a brief failure below the threshold produces neither an outage nor a recovery notification.
+
+For the default threshold of three, one or two failed checks followed by success are silent. Three failed checks trigger an outage alert; the next successful check triggers recovery and resets the failure count. A threshold of one alerts on the first failed check, including at startup. Delivery still requires attached notification channels and valid provider settings.
 
 See [monitoring](usage.md) for check semantics and [API usage](api.md) for programmatic notifier management.

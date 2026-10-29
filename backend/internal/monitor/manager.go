@@ -14,8 +14,12 @@ import (
 )
 
 type endpointState struct {
-	isUp             bool
 	consecutiveFails int
+	outageNotified   bool
+}
+
+type alertDispatcher interface {
+	SendAlert(endpointID int64, endpointName, title, message string)
 }
 
 const resultsBufferCapacity = 4096
@@ -23,7 +27,7 @@ const resultsBufferCapacity = 4096
 // Manager orchestrates one goroutine per monitored endpoint.
 type Manager struct {
 	db           *db.DB
-	dispatcher   *notifier.Dispatcher
+	dispatcher   alertDispatcher
 	StateManager *StateManager
 	mu           sync.RWMutex
 	workers      map[int64]context.CancelFunc
@@ -199,35 +203,23 @@ func (m *Manager) check(ctx context.Context, ep model.Endpoint, checker Checker)
 		slog.Warn("db writer channel full, dropping historical check metric", "endpoint_id", ep.ID)
 	}
 
-	currentState, hadLast := m.state[ep.ID]
-
-	newState := endpointState{
-		isUp:             isUp,
-		consecutiveFails: currentState.consecutiveFails,
-	}
-
-	if !isUp {
-		newState.consecutiveFails++
+	state := m.state[ep.ID]
+	if isUp {
+		state.consecutiveFails = 0
+		if state.outageNotified {
+			state.outageNotified = false
+			slog.Info("endpoint recovered", "endpoint_id", ep.ID, "name", ep.Name, "url", ep.URL)
+			m.dispatcher.SendAlert(ep.ID, ep.Name, "✅ Service Recovered", fmt.Sprintf("%s is back online.", ep.Name))
+		}
 	} else {
-		newState.consecutiveFails = 0
+		state.consecutiveFails++
+		if !state.outageNotified && state.consecutiveFails >= ep.FailThreshold {
+			state.outageNotified = true
+			slog.Info("endpoint down threshold reached", "endpoint_id", ep.ID, "name", ep.Name, "url", ep.URL, "status_code", statusCode)
+			m.dispatcher.SendAlert(ep.ID, ep.Name, "🚨 Service Down", fmt.Sprintf("%s is offline.\nURL: %s", ep.Name, ep.URL))
+		}
 	}
-
-	m.state[ep.ID] = newState
-
-	if !hadLast {
-		// First check ever since app start, don't alert on state change
-		// except if it's immediately down (could have been down before restart).
-		// For now, let's treat the first check as the baseline.
-		return
-	}
-
-	if isUp && !currentState.isUp {
-		slog.Info("endpoint recovered", "endpoint_id", ep.ID, "name", ep.Name, "url", ep.URL)
-		m.dispatcher.SendAlert(ep.ID, ep.Name, "✅ Service Recovered", fmt.Sprintf("%s is back online.", ep.Name))
-	} else if !isUp && newState.consecutiveFails == ep.FailThreshold {
-		slog.Info("endpoint down threshold reached", "endpoint_id", ep.ID, "name", ep.Name, "url", ep.URL, "status_code", statusCode)
-		m.dispatcher.SendAlert(ep.ID, ep.Name, "🚨 Service Down", fmt.Sprintf("%s is offline.\nURL: %s", ep.Name, ep.URL))
-	}
+	m.state[ep.ID] = state
 }
 
 func (m *Manager) cleanupLoop(ctx context.Context) {
