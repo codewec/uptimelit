@@ -16,6 +16,7 @@ type Endpoint struct {
 }
 
 type Check struct {
+	ErrorCode      string    `json:"error_code,omitempty"`
 	ID             int64     `json:"id"`
 	EndpointID     int64     `json:"endpoint_id"`
 	StatusCode     *int      `json:"status_code"`
@@ -25,6 +26,7 @@ type Check struct {
 }
 
 type MinimalCheck struct {
+	ErrorCode      string    `json:"error_code,omitempty"`
 	IsUp           bool      `json:"is_up"`
 	CheckedAt      time.Time `json:"checked_at"`
 	StatusCode     *int      `json:"status_code,omitempty"`
@@ -32,6 +34,7 @@ type MinimalCheck struct {
 }
 
 type EndpointWithStats struct {
+	ErrorCode string `json:"error_code,omitempty"`
 	Endpoint
 	StatusCode     *int           `json:"status_code"`
 	ResponseTimeMs *int           `json:"response_time_ms"`

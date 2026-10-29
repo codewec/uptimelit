@@ -7,8 +7,16 @@ export type User = {
   authMethod?: 'password' | 'oidc'
 }
 export type AuthConfig = { passwordLoginEnabled: boolean; oidcEnabled: boolean; oidcButtonTitle: string; bootstrap: boolean }
-export type Check = { id?: number; is_up: boolean; status_code?: number | null; response_time_ms?: number; checked_at: string }
+export type Check = {
+  error_code?: string
+  id?: number
+  is_up: boolean
+  status_code?: number | null
+  response_time_ms?: number
+  checked_at: string
+}
 export type Monitor = {
+  error_code?: string
   id: number
   owner_id: string
   type: 'http' | 'tcp'

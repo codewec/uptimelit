@@ -11,6 +11,7 @@ import (
 )
 
 type EndpointStats struct {
+	LastErrorCode  string
 	LastStatusCode *int
 	LastResponseMs *int
 	LastIsUp       *bool
@@ -67,6 +68,7 @@ func (sm *StateManager) Hydrate(ctx context.Context) error {
 					IsUp:           recent[i].IsUp,
 					CheckedAt:      recent[i].CheckedAt,
 					StatusCode:     recent[i].StatusCode,
+					ErrorCode:      recent[i].ErrorCode,
 					ResponseTimeMs: recent[i].ResponseTimeMs,
 				})
 			}
@@ -74,6 +76,7 @@ func (sm *StateManager) Hydrate(ctx context.Context) error {
 			// Latest status
 			latest := recent[0]
 			stats.LastStatusCode = latest.StatusCode
+			stats.LastErrorCode = latest.ErrorCode
 
 			respMs := latest.ResponseTimeMs
 			stats.LastResponseMs = &respMs
@@ -115,6 +118,7 @@ func (sm *StateManager) UpdateOnCheck(check *model.Check) {
 	}
 
 	stats.LastStatusCode = check.StatusCode
+	stats.LastErrorCode = check.ErrorCode
 
 	respMs := check.ResponseTimeMs
 	stats.LastResponseMs = &respMs
@@ -129,6 +133,7 @@ func (sm *StateManager) UpdateOnCheck(check *model.Check) {
 		IsUp:           check.IsUp,
 		CheckedAt:      check.CheckedAt,
 		StatusCode:     check.StatusCode,
+		ErrorCode:      check.ErrorCode,
 		ResponseTimeMs: check.ResponseTimeMs,
 	})
 	if len(stats.RecentChecks) > 50 {

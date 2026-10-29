@@ -26,7 +26,8 @@ func init() {
  CREATE INDEX idx_notifiers_owner ON notifiers(owner_id);
  CREATE TABLE checks (
  id INTEGER PRIMARY KEY AUTOINCREMENT,endpoint_id INTEGER NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
- status_code INTEGER,response_time_ms INTEGER NOT NULL,is_up INTEGER NOT NULL,checked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP);
+ status_code INTEGER,response_time_ms INTEGER NOT NULL,is_up INTEGER NOT NULL,checked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ error_code TEXT NOT NULL DEFAULT '');
  CREATE INDEX idx_checks_endpoint_checked_up ON checks(endpoint_id,checked_at,is_up);
  CREATE INDEX idx_checks_checked_at ON checks(checked_at);
  CREATE TABLE endpoint_notifiers (

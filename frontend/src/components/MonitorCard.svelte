@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connectionStatus } from '../lib/checks'
   import { DropdownMenu } from 'bits-ui'
   import type { Monitor, Notifier } from '../lib/api'
   import Icon from './Icon.svelte'
@@ -94,8 +95,10 @@
       <p class="mt-0.5 text-xs font-semibold tabular-nums">{monitor.response_time_ms == null ? '—' : monitor.response_time_ms + ' ms'}</p>
     </div>
     <div>
-      <p class="text-[10px] text-text-subtle">HTTP status</p>
-      <p class="mt-0.5 text-xs font-semibold tabular-nums">{monitor.status_code ?? '—'}</p>
+      <p class="text-[10px] text-text-subtle">{monitor.type === 'tcp' ? 'Connection' : 'HTTP status'}</p>
+      <p class="mt-0.5 text-xs font-semibold tabular-nums">
+        {monitor.type === 'tcp' ? connectionStatus(monitor.is_up, monitor.error_code) : (monitor.status_code ?? '—')}
+      </p>
     </div>
   </div>
   <div class="mt-4 flex items-center justify-between gap-2 border-t border-border-soft pt-3 text-[10px] text-text-subtle">

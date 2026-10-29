@@ -12,11 +12,11 @@ import (
 
 type blockingChecker struct{ started, release chan struct{} }
 
-func (c blockingChecker) Check(context.Context) (*int, int, bool) {
+func (c blockingChecker) Check(context.Context) (*int, int, bool, string) {
 	close(c.started)
 	<-c.release
 	code := 200
-	return &code, 1, true
+	return &code, 1, true, ""
 }
 func TestUserDeletionDuringCheck(t *testing.T) {
 	d, e := db.New(":memory:")

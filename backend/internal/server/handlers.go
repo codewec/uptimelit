@@ -90,6 +90,7 @@ func (s *Server) listEndpoints(w http.ResponseWriter, r *http.Request) {
 
 		if stats, exists := statsMap[ep.ID]; exists {
 			endpoints[i].StatusCode = stats.LastStatusCode
+			endpoints[i].ErrorCode = stats.LastErrorCode
 			endpoints[i].ResponseTimeMs = stats.LastResponseMs
 			endpoints[i].IsUp = stats.LastIsUp
 			endpoints[i].CheckedAt = stats.LastCheckedAt

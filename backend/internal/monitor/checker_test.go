@@ -36,7 +36,7 @@ func TestHTTPChecker(t *testing.T) {
 			}))
 			defer server.Close()
 
-			code, _, up := NewHTTPChecker(server.URL).Check(context.Background())
+			code, _, up, _ := NewHTTPChecker(server.URL).Check(context.Background())
 			if code == nil || *code != tt.wantCode || up != tt.wantUp {
 				t.Fatalf("Check() = (%v, up=%v), want code=%d, up=%v", code, up, tt.wantCode, tt.wantUp)
 			}

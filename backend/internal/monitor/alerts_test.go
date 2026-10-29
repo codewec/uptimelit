@@ -10,12 +10,12 @@ import (
 
 type resultChecker bool
 
-func (c resultChecker) Check(context.Context) (*int, int, bool) {
+func (c resultChecker) Check(context.Context) (*int, int, bool, string) {
 	code := 503
 	if c {
 		code = 200
 	}
-	return &code, 1, bool(c)
+	return &code, 1, bool(c), ""
 }
 
 type recordedAlerts struct{ titles []string }

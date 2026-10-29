@@ -2,8 +2,10 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
+	"syscall"
 	"time"
 )
 
@@ -11,7 +13,7 @@ import (
 // It allows different types of monitors (HTTP, TCP, Ping, etc.) to be used
 // interchangeably by the Manager orchestration loop.
 type Checker interface {
-	Check(ctx context.Context) (statusCode *int, responseTimeMs int, isUp bool)
+	Check(ctx context.Context) (statusCode *int, responseTimeMs int, isUp bool, errorCode string)
 }
 
 // HTTPChecker is the default implementation of Checker for HTTP/HTTPS endpoints.
@@ -35,7 +37,7 @@ func NewHTTPChecker(url string) *HTTPChecker {
 }
 
 // Check performs the HTTP check (trying HEAD first, falling back to GET).
-func (c *HTTPChecker) Check(ctx context.Context) (*int, int, bool) {
+func (c *HTTPChecker) Check(ctx context.Context) (*int, int, bool, string) {
 	start := time.Now()
 	statusCode, err := c.doRequest(ctx, c.url, http.MethodHead)
 	if err == nil && statusCode != nil && *statusCode == http.StatusMethodNotAllowed {
@@ -45,10 +47,10 @@ func (c *HTTPChecker) Check(ctx context.Context) (*int, int, bool) {
 	responseTimeMs := int(time.Since(start).Milliseconds())
 
 	if err != nil {
-		return nil, responseTimeMs, false
+		return nil, responseTimeMs, false, ""
 	}
 	isUp := *statusCode >= 200 && *statusCode < 400
-	return statusCode, responseTimeMs, isUp
+	return statusCode, responseTimeMs, isUp, ""
 }
 
 func (c *HTTPChecker) doRequest(ctx context.Context, url, method string) (*int, error) {
@@ -81,7 +83,7 @@ func NewTCPChecker(address string) *TCPChecker {
 }
 
 // Check performs the TCP connection check.
-func (c *TCPChecker) Check(ctx context.Context) (*int, int, bool) {
+func (c *TCPChecker) Check(ctx context.Context) (*int, int, bool, string) {
 	start := time.Now()
 
 	// We use a Dialer to respect the context timeout
@@ -91,12 +93,37 @@ func (c *TCPChecker) Check(ctx context.Context) (*int, int, bool) {
 	responseTimeMs := int(time.Since(start).Milliseconds())
 
 	if err != nil {
-		return nil, responseTimeMs, false
+		return nil, responseTimeMs, false, connectionErrorCode(err)
 	}
 
 	// If we successfully connected, close it immediately
 	conn.Close()
 
 	// TCP doesn't have HTTP status codes, so we just return nil for the code
-	return nil, responseTimeMs, true
+	return nil, responseTimeMs, true, ""
+}
+
+// Store stable categories rather than platform-specific dial error messages.
+func connectionErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+	var networkError net.Error
+	var dnsError *net.DNSError
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.As(err, &networkError) && networkError.Timeout():
+		return "timeout"
+	case errors.As(err, &dnsError):
+		return "dns_error"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "connection_refused"
+	case errors.Is(err, syscall.ENETUNREACH), errors.Is(err, syscall.EHOSTUNREACH):
+		return "network_unreachable"
+	case errors.Is(err, syscall.ECONNRESET):
+		return "connection_reset"
+	default:
+		return "connection_error"
+	}
 }

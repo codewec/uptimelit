@@ -177,7 +177,7 @@ func (m *Manager) check(ctx context.Context, ep model.Endpoint, checker Checker)
 	reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	statusCode, responseTimeMs, isUp := checker.Check(reqCtx)
+	statusCode, responseTimeMs, isUp, errorCode := checker.Check(reqCtx)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if ctx.Err() != nil {
@@ -189,6 +189,7 @@ func (m *Manager) check(ctx context.Context, ep model.Endpoint, checker Checker)
 
 	check := &model.Check{
 		EndpointID:     ep.ID,
+		ErrorCode:      errorCode,
 		StatusCode:     statusCode,
 		ResponseTimeMs: responseTimeMs,
 		IsUp:           isUp,

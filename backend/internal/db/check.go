@@ -10,8 +10,8 @@ import (
 
 func (d *DB) RecordCheck(ctx context.Context, c *model.Check) error {
 	res, err := d.conn.ExecContext(ctx,
-		`INSERT INTO checks (endpoint_id, status_code, response_time_ms, is_up, checked_at) SELECT ?, ?, ?, ?, ? WHERE EXISTS(SELECT 1 FROM endpoints WHERE id=?)`,
-		c.EndpointID, c.StatusCode, c.ResponseTimeMs, c.IsUp, c.CheckedAt, c.EndpointID)
+		`INSERT INTO checks (endpoint_id, status_code, response_time_ms, is_up, checked_at, error_code) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS(SELECT 1 FROM endpoints WHERE id=?)`,
+		c.EndpointID, c.StatusCode, c.ResponseTimeMs, c.IsUp, c.CheckedAt, c.ErrorCode, c.EndpointID)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (d *DB) CleanupOldChecks(ctx context.Context, days int) error {
 
 func (d *DB) GetChecksByEndpoint(ctx context.Context, endpointID int64, limit int) ([]model.Check, error) {
 	rows, err := d.conn.QueryContext(ctx,
-		`SELECT id, endpoint_id, status_code, response_time_ms, is_up, checked_at 
+		`SELECT id, endpoint_id, status_code, response_time_ms, is_up, checked_at, error_code
          FROM checks WHERE endpoint_id = ? AND EXISTS(SELECT 1 FROM endpoints e WHERE e.id=checks.endpoint_id AND (?='' OR e.owner_id=?)) ORDER BY checked_at DESC, id DESC LIMIT ?`,
 		endpointID, Owner(ctx), Owner(ctx), limit)
 	if err != nil {
@@ -67,7 +67,7 @@ func (d *DB) GetChecksByEndpoint(ctx context.Context, endpointID int64, limit in
 	var checks []model.Check
 	for rows.Next() {
 		var c model.Check
-		if err := rows.Scan(&c.ID, &c.EndpointID, &c.StatusCode, &c.ResponseTimeMs, &c.IsUp, &c.CheckedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.EndpointID, &c.StatusCode, &c.ResponseTimeMs, &c.IsUp, &c.CheckedAt, &c.ErrorCode); err != nil {
 			return nil, err
 		}
 		checks = append(checks, c)

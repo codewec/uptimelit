@@ -405,3 +405,57 @@ test('Bits UI v2 alert dialog stays open on failed asynchronous confirmation', a
     await page.request.delete(`/api/notifiers/${notifier.id}`, { headers: { 'X-UptimeLit-Request': '1' } })
   }
 })
+
+test('TCP cards and check history show connection failure reasons instead of HTTP codes', async ({ page }) => {
+  await ensureAdmin(page)
+  const timestamp = '2026-10-30T12:00:00Z'
+  const cases = [
+    { name: 'Healthy TCP', up: true, error: '', label: 'Connected' },
+    { name: 'Refused TCP', up: false, error: 'connection_refused', label: 'Connection refused' },
+    { name: 'Slow TCP', up: false, error: 'timeout', label: 'Timeout' },
+    { name: 'DNS TCP', up: false, error: 'dns_error', label: 'DNS error' },
+    { name: 'Unreachable TCP', up: false, error: 'network_unreachable', label: 'Network unreachable' },
+    { name: 'Reset TCP', up: false, error: 'connection_reset', label: 'Connection reset' },
+    { name: 'Other TCP', up: false, error: 'connection_error', label: 'Connection error' },
+    { name: 'Legacy TCP', up: false, error: '', label: 'Failed' },
+    { name: 'Pending TCP', up: null, error: '', label: '—' },
+  ]
+  const monitors: Monitor[] = cases.map((item, index) => ({
+    id: index + 1,
+    owner_id: 'fixture',
+    name: item.name,
+    type: 'tcp',
+    url: 'localhost:1234',
+    interval_seconds: 60,
+    fail_threshold: 3,
+    paused: false,
+    created_at: timestamp,
+    notifier_ids: [],
+    status_code: null,
+    response_time_ms: item.up == null ? null : 0,
+    is_up: item.up,
+    checked_at: item.up == null ? null : timestamp,
+    uptime_24h: null,
+    error_code: item.error,
+    recent_checks: item.up == null ? [] : [{ is_up: item.up, checked_at: timestamp, response_time_ms: 0, error_code: item.error }],
+  }))
+  await page.route('**/api/endpoints', (route) => route.fulfill({ json: monitors }))
+  await page.route('**/api/endpoints/2/checks?*', (route) => route.fulfill({ json: monitors[1].recent_checks }))
+  await login(page)
+  for (const item of cases) {
+    const card = page.locator('section').filter({ has: page.getByRole('heading', { name: item.name, exact: true }) })
+    await expect(card.getByText('Connection', { exact: true })).toBeVisible()
+    await expect(card.getByText('HTTP status', { exact: true })).toHaveCount(0)
+    if (item.up != null) await expect(card.getByText(item.label, { exact: true })).toBeVisible()
+  }
+  const failedCard = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Refused TCP', exact: true }) })
+  await failedCard.locator('[data-check-key]').hover()
+  const tooltip = page.getByRole('tooltip')
+  await expect(tooltip.getByText('Connection refused', { exact: true })).toBeVisible()
+  await expect(tooltip.getByText('HTTP status', { exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await failedCard.getByRole('button', { name: 'View history for Refused TCP' }).click()
+  const history = page.getByRole('dialog', { name: 'Refused TCP', exact: true })
+  await expect(history.getByRole('columnheader', { name: 'Connection', exact: true })).toBeVisible()
+  await expect(history.getByRole('cell', { name: 'Connection refused', exact: true })).toBeVisible()
+})
